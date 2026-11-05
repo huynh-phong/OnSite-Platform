@@ -8,7 +8,7 @@ Tài liệu này giúp cả nhóm nắm nhanh những gì đã thay đổi trong
 
 ## 1. Tóm tắt trong một đoạn
 
-MVP ở Phase 3 đã chạy ổn, nhưng còn **4 chỗ chưa làm hoặc mới làm một nửa** so với những gì slide Round 1 đã hứa. Giám khảo Round 2 chấm "technical reasoning aligned with Round 1", nên đây là những chỗ dễ bị hỏi nhất. Đợt này nhóm đã bổ sung đủ 4 chỗ đó, sửa thêm 3 lỗi nhỏ, và viết thêm 42 test. Toàn bộ 491 test unit/integration đều pass. Kiến trúc giữ nguyên: vẫn 4 service và 3 database, không thêm service nào.
+MVP ở Phase 3 đã chạy ổn, nhưng còn **4 chỗ chưa làm hoặc mới làm một nửa** so với những gì slide Round 1 đã hứa. Giám khảo Round 2 chấm "technical reasoning aligned with Round 1", nên đây là những chỗ dễ bị hỏi nhất. Đợt này nhóm đã bổ sung đủ 4 chỗ đó, sửa thêm 3 lỗi nhỏ, và viết thêm 43 test. Toàn bộ 492 test unit/integration và 29/29 test E2E trình duyệt đều pass. Kiến trúc giữ nguyên: vẫn 4 service và 3 database, không thêm service nào.
 
 ## 2. Bốn cải tiến chính
 
@@ -140,20 +140,20 @@ Tổng cộng 42 file sửa và 15 file mới, tính cả hai tài liệu này.
 
 | Loại | Trước | Sau | Ghi chú |
 |---|---|---|---|
-| Local SE | 289 | **321 pass** | +32 test |
+| Local SE | 289 | **322 pass** | +33 test |
 | Simulator | 54 | **57 pass** | |
 | Central | 31 | **33 pass** | |
 | Web | 75 | **80 pass** | |
-| **Tổng unit/integration** | 449 | **491 pass, 0 fail** | Typecheck sạch cả 5 project |
+| **Tổng unit/integration** | 449 | **492 pass, 0 fail** | Typecheck sạch cả 5 project |
 | Smoke API trên stack thật | 45 | **45/45 pass** | Windows native, AI mock |
-| E2E trình duyệt (Playwright) | 27 | **Chưa chạy trọn** | Xem bên dưới |
+| E2E trình duyệt (Playwright) | 27 | **29/29 pass** | Chromium, Windows native, AI mock. Xem bên dưới |
 
-**Về E2E:** hệ thống tự dừng lần chạy giữa chừng vì máy (8 GB RAM) gần hết bộ nhớ, do phải chạy stack demo và stack E2E cùng lúc.
+**Về E2E:** đã chạy trọn 29 test, gồm 2 test mới trong `h-round2.spec.ts`, mất khoảng 3,2 phút. Stack E2E chạy trên port riêng (13000 trở lên) với database `*_e2e` dùng một lần, nên dữ liệu demo không bị ảnh hưởng.
 
-- Trước khi bị dừng, 13 test đã pass, trong đó có kịch bản S2 đã cập nhật cho nút Accept.
-- Có 1 test fail do chính thay đổi "từ chối ngày quá khứ": test này dùng ngày `2026-01-01` làm hạn sớm. Test đã được sửa sang "15 phút nữa theo giờ Thuỵ Điển", **nhưng chưa chạy lại**.
-- Các test fail còn lại có lỗi `Target crashed` hoặc worker bị thoát, tức là do thiếu RAM chứ không phải lỗi logic.
-- **File `h-round2.spec.ts` mới chưa chạy lần nào.**
+- Lần chạy đầu tiên của đợt trước bị dừng giữa chừng vì máy (8 GB RAM) gần hết bộ nhớ khi chạy cả stack demo lẫn stack E2E. Những test fail lúc đó có lỗi `Target crashed`, không phải lỗi logic.
+- Test dùng ngày `2026-01-01` làm hạn sớm, đã sửa sang "15 phút nữa theo giờ Thuỵ Điển", nay đã pass.
+- E2E bắt được **1 lỗi thật** ở bộ đọc đơn mock: tin nhắn chỉ được tách ở dấu phẩy và chữ `och`, không tách ở cuối câu. Vì vậy lời chào ("Hej! Ring mig på [removed]. Vi behöver…") và ghi chú giao hàng bị dính vào dòng trích dẫn. Đã sửa trong `llm.ts`: tách thêm ở cuối câu và trích từ con số số lượng. Đã thêm 1 unit test để bắt lỗi này mà không cần trình duyệt.
+- Cách chạy lại: build cả 4 app (E2E chạy bản build trong `dist`), rồi `cd apps/e2e && npx playwright test`.
 
 ## 6. Cập nhật máy của bạn sau khi pull
 
@@ -181,10 +181,9 @@ Với Docker: `docker compose up --build -d` rồi chạy `scripts/reset-demo.sh
 
 | Việc | Ai | Ghi chú |
 |---|---|---|
-| Chạy lại E2E khi máy đủ RAM: tắt stack demo trước (`scripts/run-native.sh down`), rồi `cd apps/e2e && npm test` | Backend | Xác nhận 29 test, gồm 2 test mới |
 | Thử bộ đọc đơn với Gemini thật (nếu định demo bằng AI thật) | AI | Hiện mới chạy với mock. Không được công bố độ chính xác |
 | Duyệt và chỉnh 2 bản nháp PDF | Consultant | `materials/drafts/System Context Diagram (draft).pdf` và `User Journey (draft).pdf`. **Hai file này chỉ có trên máy đã làm, không nằm trong repo.** Bản HTML nguồn nằm cùng thư mục |
-| Viết AI Journal theo template | Cả nhóm | Có thể ghi đợt này như một mục: dùng Claude Code để tìm khoảng trống so với Round 1 và cài đặt 4 cải tiến. Nhóm kiểm chứng bằng 42 test mới, smoke test, và review code |
+| Viết AI Journal theo template | Cả nhóm | Có thể ghi đợt này như một mục: dùng Claude Code để tìm khoảng trống so với Round 1 và cài đặt 4 cải tiến. Nhóm kiểm chứng bằng 43 test mới, smoke test, 29 test E2E trình duyệt, và review code |
 | Tập runbook một lần có bấm giờ, rồi quay video ≤ 7 phút | Cả nhóm | Thêm đoạn "What changed since Round 1": 4 cải tiến trên, cộng lý do mọi gợi ý AI đều chờ người duyệt |
 | Kiểm tra không lộ secret trong video và PDF | Cả nhóm | Không quay `.env` hay terminal in mật khẩu |
 
