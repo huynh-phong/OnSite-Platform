@@ -156,11 +156,14 @@ export class MockLlmProvider implements LlmProvider {
   async parseOrder(input: ParseOrderInput): Promise<unknown> {
     const products = input.catalog.map((product) => ({ product, tokens: orderTokens(`${product.name} ${product.unit}`) }));
     const lines = [];
-    for (const fragment of input.text.split(/\n|;|,|\boch\b|\band\b|\+/i)) {
-      const source = fragment.trim();
-      const quantity = QUANTITY.exec(` ${source}`);
-      if (!source || !quantity) continue;
-      const words = orderTokens(source);
+    // Sentence ends split too, so greetings and delivery notes do not end up inside a quoted line.
+    for (const fragment of input.text.split(/\n|;|,|[.!?](?=\s|$)|\boch\b|\band\b|\+/i)) {
+      const sentence = fragment.trim();
+      const quantity = QUANTITY.exec(` ${sentence}`);
+      if (!sentence || !quantity) continue;
+      // Quote from the quantity on ("Vi behöver 20 säckar" -> "20 säckar"); match on the whole fragment.
+      const source = sentence.slice(quantity.index + quantity[0].length - quantity[1]!.length - 1);
+      const words = orderTokens(sentence);
       const scored = products
         .map(({ product, tokens }) => {
           const matched = [...tokens].filter((token) => words.has(token)).length;
