@@ -147,6 +147,7 @@ Tổng cộng 42 file sửa và 15 file mới, tính cả hai tài liệu này.
 | **Tổng unit/integration** | 449 | **492 pass, 0 fail** | Typecheck sạch cả 5 project |
 | Smoke API trên stack thật | 45 | **45/45 pass** | Windows native, AI mock |
 | E2E trình duyệt (Playwright) | 27 | **29/29 pass** | Chromium, Windows native, AI mock. Xem bên dưới |
+| CI trên GitHub Actions (Linux) | Pass | **Pass** | Cả 2 job: test + E2E, và Docker Compose. Xem bên dưới |
 
 **Về E2E:** đã chạy trọn 29 test, gồm 2 test mới trong `h-round2.spec.ts`, mất khoảng 3,2 phút. Stack E2E chạy trên port riêng (13000 trở lên) với database `*_e2e` dùng một lần, nên dữ liệu demo không bị ảnh hưởng.
 
@@ -154,6 +155,13 @@ Tổng cộng 42 file sửa và 15 file mới, tính cả hai tài liệu này.
 - Test dùng ngày `2026-01-01` làm hạn sớm, đã sửa sang "15 phút nữa theo giờ Thuỵ Điển", nay đã pass.
 - E2E bắt được **1 lỗi thật** ở bộ đọc đơn mock: tin nhắn chỉ được tách ở dấu phẩy và chữ `och`, không tách ở cuối câu. Vì vậy lời chào ("Hej! Ring mig på [removed]. Vi behöver…") và ghi chú giao hàng bị dính vào dòng trích dẫn. Đã sửa trong `llm.ts`: tách thêm ở cuối câu và trích từ con số số lượng. Đã thêm 1 unit test để bắt lỗi này mà không cần trình duyệt.
 - Cách chạy lại: build cả 4 app (E2E chạy bản build trong `dist`), rồi `cd apps/e2e && npx playwright test`.
+
+**Về CI:** workflow `onsite-mvp-validation.yml` đã pass trên `main` sau khi merge, ở commit `ada9a67`, lần chạy [42042536171](https://github.com/huynh-phong/OnSite-Platform/actions/runs/42042536171). Cả 2 job đều pass:
+
+- **Typecheck, test tự động và E2E trình duyệt** trên Linux, Node 20.
+- **Dựng toàn bộ stack bằng Docker Compose** trên Linux.
+
+Như lần CI trước, E2E chạy trên các process Node chứ không nhắm vào container. Docker trên Windows vẫn chưa được thử.
 
 ## 6. Cập nhật máy của bạn sau khi pull
 
@@ -164,7 +172,7 @@ ONSITE_LLM_PROVIDER=mock scripts/run-native.sh up
 scripts/run-native.sh reset S1               # bắt buộc: áp dụng migration mới
 ```
 
-Với Docker: `docker compose up --build -d` rồi chạy `scripts/reset-demo.sh S1`. Phần này **chưa được thử**, vì máy chạy đợt này không có Docker.
+Với Docker: `docker compose up --build -d` rồi chạy `scripts/reset-demo.sh S1`. Phần này đã pass trên Linux trong CI với code Round 2, nhưng **chưa được thử trên Windows**.
 
 ## 7. Các cảnh demo mới
 
