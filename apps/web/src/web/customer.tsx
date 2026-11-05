@@ -392,7 +392,7 @@ export function OrderProgress({ status }: { status: string }) {
   const index = PROGRESS.indexOf(status);
   if (index < 0) return null;
   return (
-    <div className="steps" aria-label="Order progress">
+    <div className="steps order-progress" aria-label="Order progress">
       {PROGRESS.map((step, position) => (
         <div key={step} className={`step ${position < index || status === 'DELIVERED' ? 'done' : position === index ? 'current' : ''}`}>
           {statusText(step)}
