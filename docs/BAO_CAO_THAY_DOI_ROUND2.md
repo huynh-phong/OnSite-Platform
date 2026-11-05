@@ -97,7 +97,7 @@ Ghi chú kỹ thuật:
 - Font Inter và bộ biểu tượng Lucide được đóng gói thẳng vào app, nên demo không cần mạng. Kiểm tra bảo mật cho phần dependency chạy trên production báo 0 lỗ hổng.
 - Đã tắt tính năng tự thay ký tự của Inter. Nếu để mặc định, "900x2400" sẽ hiện thành "900×2400", tức màn hình không còn đúng chữ khách đã gõ.
 - Tên class giữ nguyên, nên không phải sửa test nào. Code nằm trong `apps/web/src/shared/styles.css`, `shared/ui.tsx` và `web/Layout.tsx`.
-- Kết quả: test web 80/80, E2E 29/29, CI trên `main` pass ở commit `87fc01e` (lần chạy [42052085351](https://github.com/huynh-phong/OnSite-Platform/actions/runs/42052085351)).
+- Kết quả: test web 80/80, E2E 29/29, CI trên `main` pass ở commit `8cfee5e` (lần chạy [42052085351](https://github.com/huynh-phong/OnSite-Platform/actions/runs/42052085351)).
 
 ## 5. Những gì đổi trong code
 
@@ -178,14 +178,16 @@ Tổng cộng 42 file sửa và 15 file mới, tính cả hai tài liệu này.
 - E2E bắt được **1 lỗi thật** ở bộ đọc đơn mock: tin nhắn chỉ được tách ở dấu phẩy và chữ `och`, không tách ở cuối câu. Vì vậy lời chào ("Hej! Ring mig på [removed]. Vi behöver…") và ghi chú giao hàng bị dính vào dòng trích dẫn. Đã sửa trong `llm.ts`: tách thêm ở cuối câu và trích từ con số số lượng. Đã thêm 1 unit test để bắt lỗi này mà không cần trình duyệt.
 - Cách chạy lại: build cả 4 app (E2E chạy bản build trong `dist`), rồi `cd apps/e2e && npx playwright test`.
 
-**Về CI:** workflow `onsite-mvp-validation.yml` đã pass trên `main` sau khi merge, ở commit `ada9a67`, lần chạy [42042536171](https://github.com/huynh-phong/OnSite-Platform/actions/runs/42042536171). Cả 2 job đều pass:
+**Về CI:** workflow `onsite-mvp-validation.yml` đã pass trên `main` sau khi merge, ở commit `372f588`, lần chạy [42042536171](https://github.com/huynh-phong/OnSite-Platform/actions/runs/42042536171). Cả 2 job đều pass:
 
 - **Typecheck, test tự động và E2E trình duyệt** trên Linux, Node 20.
 - **Dựng toàn bộ stack bằng Docker Compose** trên Linux.
 
 Như lần CI trước, E2E chạy trên các process Node chứ không nhắm vào container. Docker trên Windows vẫn chưa được thử.
 
-Sau khi merge giao diện mới (mục 4), CI lại pass ở commit `87fc01e`, lần chạy [42052085351](https://github.com/huynh-phong/OnSite-Platform/actions/runs/42052085351).
+Sau khi merge giao diện mới (mục 4), CI lại pass ở commit `8cfee5e`, lần chạy [42052085351](https://github.com/huynh-phong/OnSite-Platform/actions/runs/42052085351).
+
+Ghi chú: lịch sử Git đã được viết lại để bỏ dòng đồng tác giả `Co-Authored-By: Claude` khỏi các commit đợt này. Code không đổi, chỉ mã commit đổi. Vì vậy trang CI vẫn hiện mã cũ: `ada9a67` tương ứng với `372f588`, và `87fc01e` tương ứng với `8cfee5e`.
 
 ## 7. Cập nhật máy của bạn sau khi pull
 
@@ -217,7 +219,7 @@ Với Docker: `docker compose up --build -d` rồi chạy `scripts/reset-demo.sh
 | Duyệt và chỉnh 2 bản nháp PDF | Consultant | `materials/drafts/System Context Diagram (draft).pdf` và `User Journey (draft).pdf`. **Hai file này chỉ có trên máy đã làm, không nằm trong repo.** Bản HTML nguồn nằm cùng thư mục |
 | Viết AI Journal theo template | Cả nhóm | Có thể ghi đợt này như một mục: dùng Claude Code để tìm khoảng trống so với Round 1 và cài đặt 4 cải tiến. Nhóm kiểm chứng bằng 43 test mới, smoke test, 29 test E2E trình duyệt, và review code |
 | Tập runbook một lần có bấm giờ, rồi quay video ≤ 7 phút | Cả nhóm | Thêm đoạn "What changed since Round 1": 4 cải tiến trên, cộng lý do mọi gợi ý AI đều chờ người duyệt. Quay bằng giao diện mới |
-| Chụp lại ảnh màn hình trong slide, PDF và tài liệu nộp | Consultant | Ảnh chụp trước commit `87fc01e` là giao diện cũ. Ảnh mới có sẵn trong `apps/e2e/test-results/screens/` sau khi chạy E2E |
+| Chụp lại ảnh màn hình trong slide, PDF và tài liệu nộp | Consultant | Ảnh chụp trước commit `8cfee5e` là giao diện cũ. Bộ 22 ảnh mới (độ nét 2x, máy tính và điện thoại) nằm trong `materials/screenshots/` trên máy đã chụp, không nằm trong repo |
 | Kiểm tra không lộ secret trong video và PDF | Cả nhóm | Không quay `.env` hay terminal in mật khẩu |
 
 ## 10. Những điều vẫn không được tuyên bố
