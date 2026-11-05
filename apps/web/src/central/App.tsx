@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { BellRing, CircleCheck, Clock, FileCheck, ListChecks, LogOut, Package, Target, TriangleAlert } from 'lucide-react';
 import { formatMs, formatPercent, formatTime, statusText } from '../shared/format';
 import { DashboardError, sessionFetch } from '../shared/http';
-import { Alert, Badge, Card, Empty, Kpi, Loading, PageHead, type Tone } from '../shared/ui';
+import { Alert, Badge, BrandMark, Card, Empty, Kpi, Loading, PageHead, type Tone } from '../shared/ui';
 
 interface Country {
   origin_country: string;
@@ -64,19 +65,21 @@ function PilotKpis({ kpis }: { kpis: NonNullable<Dashboard['pilot_kpis']> }) {
     <Card title="Pilot go/no-go KPIs (Round 1)" actions={<Badge tone="neutral">Simulated data</Badge>}>
       <div className="card-body">
         <div className="kpis">
-          <Kpi label="Simulated OTIF" value={formatPercent(kpis.simulated_otif_rate)} hint="Not a real-world result. Gate: +3 pp over the pilot baseline" />
+          <Kpi icon={Target} label="Simulated OTIF" value={formatPercent(kpis.simulated_otif_rate)} hint="Not a real-world result. Gate: +3 pp over the pilot baseline" />
           <Kpi
+            icon={BellRing}
             label="Delay warnings sent before the customer asked"
             value={kpis.delay_warnings_sent}
             hint="Gate: status calls −30%. Each warning answers a call before it is made"
           />
           <Kpi
+            icon={ListChecks}
             label="Node tasks handled in OnSite"
             value={formatPercent(kpis.adoption_rate)}
             hint={`Gate: adoption >90%. ${kpis.tasks_handled_in_onsite} of ${due} decided before the deadline`}
             {...(kpis.adoption_rate !== null && kpis.adoption_rate < 0.9 ? { tone: 'warn' as const } : {})}
           />
-          <Kpi label="Deliveries confirmed digitally" value={kpis.deliveries_confirmed_digitally} hint="Proof of delivery in OnSite, not on paper" />
+          <Kpi icon={FileCheck} label="Deliveries confirmed digitally" value={kpis.deliveries_confirmed_digitally} hint="Proof of delivery in OnSite, not on paper" />
         </div>
       </div>
     </Card>
@@ -99,6 +102,7 @@ function Login({ onDone }: { onDone: () => void }) {
     <div className="center-card">
       <section className="card">
         <form className="card-body stack" onSubmit={(event) => void submit(event)}>
+          <BrandMark size={36} />
           <div>
             <h1>OnSite Central</h1>
             <p className="muted">Cross-country monitoring. Holds no customer data.</p>
@@ -172,9 +176,9 @@ export function App() {
   return (
     <div className="shell theme-central">
       <header className="topbar">
-        <span className="brand">OnSite Central<small>Monitoring only: orders are processed in each country</small></span>
+        <span className="brand"><BrandMark />OnSite Central<small>Monitoring only: orders are processed in each country</small></span>
         <span style={{ flex: 1 }} />
-        <div className="userbox"><button type="button" onClick={() => void logout()}>Log out</button></div>
+        <div className="userbox"><button type="button" onClick={() => void logout()}><LogOut size={15} aria-hidden="true" />Log out</button></div>
       </header>
       <main className="main stack">
         <PageHead
@@ -226,10 +230,10 @@ export function App() {
             {data.pilot_kpis && <PilotKpis kpis={data.pilot_kpis} />}
 
             <div className="kpis">
-              <Kpi label="Orders processed" value={data.kpis.total_orders} hint="Simulated data" />
-              <Kpi label="At risk now" value={data.kpis.at_risk_orders} {...(data.kpis.at_risk_orders ? { tone: 'warn' as const } : {})} />
-              <Kpi label="Shortages caught at order time" value={data.kpis.early_shortage_detected} />
-              <Kpi label="Delivered" value={data.kpis.delivered_orders} />
+              <Kpi icon={Package} label="Orders processed" value={data.kpis.total_orders} hint="Simulated data" />
+              <Kpi icon={Clock} label="At risk now" value={data.kpis.at_risk_orders} {...(data.kpis.at_risk_orders ? { tone: 'warn' as const } : {})} />
+              <Kpi icon={TriangleAlert} label="Shortages caught at order time" value={data.kpis.early_shortage_detected} />
+              <Kpi icon={CircleCheck} label="Delivered" value={data.kpis.delivered_orders} />
               {!data.pilot_kpis && <Kpi label="Simulated OTIF" value={formatPercent(data.kpis.simulated_otif_rate)} hint="Not a real-world result" />}
             </div>
 

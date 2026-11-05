@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { CircleCheck, Hourglass, Inbox, PackageCheck, Repeat, Sparkles, Truck, TriangleAlert } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { formatPercent, formatSek, formatTime, statusText } from '../shared/format';
 import { Alert, Badge, Card, Empty, Kpi, Loading, PageHead } from '../shared/ui';
@@ -84,12 +85,12 @@ export function StaffHome() {
         </Alert>
       )}
       <div className="kpis">
-        <Kpi label="To approve" value={pending.length} />
-        <Kpi label="Approved, others pending" value={waiting.length} />
-        <Kpi label="Ready to dispatch" value={ready.length} />
-        <Kpi label="Out for delivery" value={outForDelivery.length} />
-        <Kpi label="With problems" value={problems.length} {...(problems.length ? { tone: 'danger' as const } : {})} />
-        <Kpi label="Completed" value={list.filter((task) => task.status === 'DELIVERED').length} />
+        <Kpi icon={Inbox} label="To approve" value={pending.length} />
+        <Kpi icon={Hourglass} label="Approved, others pending" value={waiting.length} />
+        <Kpi icon={PackageCheck} label="Ready to dispatch" value={ready.length} />
+        <Kpi icon={Truck} label="Out for delivery" value={outForDelivery.length} />
+        <Kpi icon={TriangleAlert} label="With problems" value={problems.length} {...(problems.length ? { tone: 'danger' as const } : {})} />
+        <Kpi icon={CircleCheck} label="Completed" value={list.filter((task) => task.status === 'DELIVERED').length} />
       </div>
       {tasks.loading && !tasks.data && <Loading what="Loading tasks" />}
       {Boolean(tasks.error) && <Alert tone="danger">{explainError(tasks.error)}</Alert>}
@@ -475,8 +476,8 @@ export function ReviewsPage() {
             <Alert tone="warn" title="Mock provider">Suggestions come from simple keyword rules, not an AI model. This is a demonstration of the workflow only.</Alert>
           )}
           <div className="kpis">
-            <Kpi label="AI calls" value={stats.data.ai_calls_total} />
-            <Kpi label="Reused without AI" value={stats.data.normalization_cache_hits_total} hint="Approved mapping applied" />
+            <Kpi icon={Sparkles} label="AI calls" value={stats.data.ai_calls_total} />
+            <Kpi icon={Repeat} label="Reused without AI" value={stats.data.normalization_cache_hits_total} hint="Approved mapping applied" />
             <Kpi label="Reuse rate" value={formatPercent(stats.data.normalization_cache_hit_rate)} />
             <Kpi label="Accepted / edited / rejected" value={<span style={{ fontSize: '1.1rem' }}>{stats.data.outcomes.accepted_as_is ?? 0} / {stats.data.outcomes.edited ?? 0} / {stats.data.outcomes.rejected ?? 0}</span>} />
           </div>
