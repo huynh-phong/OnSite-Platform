@@ -292,6 +292,26 @@ describe('Central dashboard', () => {
     expect(screen.getByText(/Near-real-time synchronization/)).toBeInTheDocument();
   });
 
+  it('shows the Round 1 pilot KPIs with their gates, and flags adoption below 90%', async () => {
+    const pilot_kpis = {
+      simulated_otif_rate: 1,
+      delay_warnings_sent: 2,
+      tasks_handled_in_onsite: 4,
+      tasks_missed_deadline: 1,
+      adoption_rate: 0.8,
+      deliveries_confirmed_digitally: 3,
+    };
+    dashboardFetch({ 'GET /auth/me': { authenticated: true }, 'GET /dashboard': { ...base, pilot_kpis }, 'GET /events': [] });
+    render(<CentralApp />);
+    expect(await screen.findByText('Pilot go/no-go KPIs (Round 1)')).toBeInTheDocument();
+    expect(screen.getAllByText('Simulated OTIF')).toHaveLength(1);
+    expect(screen.getByText('Delay warnings sent before the customer asked').previousSibling).toHaveTextContent('2');
+    const adoption = screen.getByText('Node tasks handled in OnSite').closest('.kpi');
+    expect(adoption).toHaveTextContent('80%');
+    expect(adoption).toHaveTextContent('4 of 5 decided before the deadline');
+    expect(adoption).toHaveClass('warn');
+  });
+
   it('simulates the outage and shows what it means', async () => {
     let offline = false;
     const calls = dashboardFetch({

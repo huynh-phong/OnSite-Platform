@@ -201,6 +201,9 @@ describe('Checkpoint 3: orders core', () => {
       expect((await post({ ...valid, items: [{ sku_id: CEMENT, quantity: 0, unit: 'bag' }] })).status).toBe(400);
       expect((await post({ ...valid, items: [{ sku_id: CEMENT, quantity: -5, unit: 'bag' }] })).status).toBe(400);
       expect((await post({ ...valid, requested_delivery_at: 'tomorrow' })).status).toBe(400);
+      const past = await post({ ...valid, requested_delivery_at: new Date(Date.now() - 3600_000).toISOString() });
+      expect(past.status).toBe(422);
+      expect(past.body.error).toMatchObject({ code: 'DELIVERY_IN_PAST' });
       const failed = await post({ ...valid, items: [] });
       expect(failed.body.error).toMatchObject({ code: 'VALIDATION_ERROR' });
     });

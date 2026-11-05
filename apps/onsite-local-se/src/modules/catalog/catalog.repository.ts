@@ -10,6 +10,8 @@ export interface StoreRow {
   lng: number;
   prep_minutes: number;
   status: 'ACTIVE' | 'INACTIVE';
+  last_heartbeat_at: Date | null;
+  heartbeat_checked_at: Date | null;
 }
 
 export interface ProductRow {
@@ -39,6 +41,31 @@ export interface SiteRow {
 export async function listStores(db: Queryable): Promise<StoreRow[]> {
   const { rows } = await db.query<StoreRow>('SELECT * FROM stores ORDER BY store_id');
   return rows;
+}
+
+/** Records one successful read of the source's heartbeats. A heartbeat never moves backwards. */
+export async function recordHeartbeats(db: Queryable, beats: { store_id: string; last_heartbeat_at: string }[]) {
+  if (!beats.length) return;
+  await db.query(
+    `UPDATE stores s
+        SET last_heartbeat_at = GREATEST(s.last_heartbeat_at, b.at), heartbeat_checked_at = now()
+       FROM unnest($1::text[], $2::timestamptz[]) AS b(store_id, at)
+      WHERE s.store_id = b.store_id`,
+    [beats.map((beat) => beat.store_id), beats.map((beat) => beat.last_heartbeat_at)],
+  );
+}
+
+/**
+ * Nodes that, at the last read, had been silent for longer than the timeout. Silence is measured as the
+ * source saw it, so a gap in our own reads does not make a node offline, and a node never heard of is not.
+ */
+export async function listOfflineNodeIds(db: Queryable, timeoutSeconds: number): Promise<string[]> {
+  const { rows } = await db.query<{ store_id: string }>(
+    `SELECT store_id FROM stores
+      WHERE heartbeat_checked_at - last_heartbeat_at > make_interval(secs => $1) ORDER BY store_id`,
+    [timeoutSeconds],
+  );
+  return rows.map((row) => row.store_id);
 }
 
 export async function getStore(db: Queryable, storeId: string): Promise<StoreRow | undefined> {

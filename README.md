@@ -3,7 +3,8 @@
 OnSite, by team PYRAMID, is a middleware layer on top of a building-materials retailer's existing ERP/WMS. It takes B2B
 orders, checks usable stock across 10 stores and 1 hub, routes and splits orders deterministically, reserves stock
 atomically at the source system, and coordinates each node's approval, dispatch and delivery. Filtered events flow to
-OnSite Central for monitoring. AI has one job: suggesting normalizations of source data, which a human always reviews.
+OnSite Central for monitoring. AI has two jobs, and a person checks the result of both: suggesting normalizations of source data, and
+reading a pasted order message into draft lines. Stock, routing, reservations and ETAs never come from AI.
 
 | Service | Address | What it is | Database |
 |---|---|---|---|
@@ -18,6 +19,7 @@ Central uses 6001 rather than the 6000 in the architecture report: browsers and 
 - Final status, test results and limitations: [docs/PHASE3_FINAL_MVP_REPORT.md](docs/PHASE3_FINAL_MVP_REPORT.md)
 - How to run and present the demo: [docs/FINAL_DEMO_RUNBOOK.md](docs/FINAL_DEMO_RUNBOOK.md)
 - Requirements audit: [docs/PHASE3_REQUIREMENTS_AUDIT.md](docs/PHASE3_REQUIREMENTS_AUDIT.md)
+- Round 2 improvements (pilot KPIs, circuit breaker, accepting available stock, AI order reader): [docs/ROUND2_IMPROVEMENTS.md](docs/ROUND2_IMPROVEMENTS.md)
 - Earlier reports: [Phase 2](docs/PHASE2_COMPLETION_REPORT.md), [Phase 1](docs/PHASE1_COMPLETION_REPORT.md)
 
 ## Configure
@@ -87,7 +89,7 @@ Passwords are in your `.env`.
 | Scenario | Store B | Hub | Order of 100 bags of `SE-CEM-025` |
 |---|---|---|---|
 | S1 | 60 on hand, 54 usable | 60 on hand, 54 usable | Split 54 + 46, `AWAITING_APPROVAL` |
-| S2 | 60 on hand, 54 usable | 40 on hand, 36 usable | `NEEDS_REVIEW`, fulfillable 90 |
+| S2 | 60 on hand, 54 usable | 40 on hand, 36 usable | `NEEDS_REVIEW`, fulfillable 90. The customer may accept 90: 54 + 36 |
 
 Switch with **Operations → Demo reset** as `admin.se`, which resets all three systems together (needs
 `DEMO_RESET_ENABLED=true`), or with `scripts/run-native.sh reset S2`. Step-by-step demo instructions are in the
@@ -159,6 +161,8 @@ cd apps/onsite-local-se && npm run eval:normalization
 | `LLM_TIMEOUT_SECONDS` | 10 | After this, a review goes to a human with no suggestion |
 | `LLM_CLAIM_LEASE_SECONDS` | 60 | After this, an interrupted AI call may be retried |
 | `CENTRAL_INGEST_URL` | Central in compose and native runs | Empty in other setups means outbox events stay `PENDING` |
+| `NODE_HEARTBEAT_TIMEOUT_SECONDS` | 300 | Circuit breaker: a node whose store server has been silent this long gets no new orders, and parts waiting for its approval move to other nodes. `.env.example` sets 60 for the demo |
+| `NODE_HEARTBEAT_CHECK_SECONDS` | 10 | How often heartbeats are read |
 | `DEMO_RESET_ENABLED` | `false` in the code | Lets an admin wipe all demo data. `.env.example` turns it on: never do that outside a demo |
 
 ## What is simulated

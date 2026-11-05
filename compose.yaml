@@ -81,6 +81,7 @@ services:
       CENTRAL_INGEST_URL: ${CENTRAL_INGEST_URL:-http://onsite-central:6001/ingest/events}
       SE_CENTRAL_TOKEN: ${SE_CENTRAL_TOKEN:?run scripts/init-env.sh}
       DEMO_RESET_ENABLED: ${DEMO_RESET_ENABLED:-false}
+      NODE_HEARTBEAT_TIMEOUT_SECONDS: ${NODE_HEARTBEAT_TIMEOUT_SECONDS:-300}
     ports:
       - "4000:4000"
     healthcheck:

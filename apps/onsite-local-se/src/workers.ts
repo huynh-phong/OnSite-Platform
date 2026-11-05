@@ -70,6 +70,7 @@ export function startWorkers(container: Container, log: FastifyBaseLogger): () =
       { name: 'reservation-renewal', seconds: config.reservation.renewalSeconds, run: () => container.reservations.renewDue() },
       { name: 'allocation-recovery', seconds: 60, run: () => container.allocation.recoverInterrupted() },
       { name: 'eta-watcher', seconds: config.eta.watchSeconds, run: () => container.eta.tick() },
+      { name: 'node-health', seconds: config.nodes.checkSeconds, run: () => container.nodes.tick() },
       { name: 'outbox-sender', seconds: config.outbox.sendSeconds, run: () => container.outbox.tick() },
     ],
     log,

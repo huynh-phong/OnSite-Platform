@@ -63,6 +63,9 @@ export async function buildEnv() {
     LLM_PROVIDER: 'mock',
     DEMO_RESET_ENABLED: 'true',
     INVENTORY_SYNC_SECONDS: '2',
+    // Short, so the circuit breaker can be seen within a test. The design value is 300.
+    NODE_HEARTBEAT_TIMEOUT_SECONDS: '4',
+    NODE_HEARTBEAT_CHECK_SECONDS: '1',
   };
 }
 

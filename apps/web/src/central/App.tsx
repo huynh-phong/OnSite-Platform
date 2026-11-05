@@ -26,6 +26,14 @@ interface Dashboard {
     delivered_orders: number;
     simulated_otif_rate: number | null;
   };
+  pilot_kpis?: {
+    simulated_otif_rate: number | null;
+    delay_warnings_sent: number;
+    tasks_handled_in_onsite: number;
+    tasks_missed_deadline: number;
+    adoption_rate: number | null;
+    deliveries_confirmed_digitally: number;
+  };
   central_sync_lag_ms: { latest: number | null; p50: number | null; p95: number | null; sampled_events: number };
 }
 interface EventRow {
@@ -48,6 +56,32 @@ const STATE: Record<string, { tone: Tone; text: string }> = {
   INGESTION_OFFLINE: { tone: 'danger', text: 'Ingestion offline (simulated)' },
   FUTURE_EXPANSION: { tone: 'neutral', text: 'Future expansion: not deployed' },
 };
+
+/** The go/no-go gate of the Round 1 pilot proposal, measured here on simulated data. */
+function PilotKpis({ kpis }: { kpis: NonNullable<Dashboard['pilot_kpis']> }) {
+  const due = kpis.tasks_handled_in_onsite + kpis.tasks_missed_deadline;
+  return (
+    <Card title="Pilot go/no-go KPIs (Round 1)" actions={<Badge tone="neutral">Simulated data</Badge>}>
+      <div className="card-body">
+        <div className="kpis">
+          <Kpi label="Simulated OTIF" value={formatPercent(kpis.simulated_otif_rate)} hint="Not a real-world result. Gate: +3 pp over the pilot baseline" />
+          <Kpi
+            label="Delay warnings sent before the customer asked"
+            value={kpis.delay_warnings_sent}
+            hint="Gate: status calls −30%. Each warning answers a call before it is made"
+          />
+          <Kpi
+            label="Node tasks handled in OnSite"
+            value={formatPercent(kpis.adoption_rate)}
+            hint={`Gate: adoption >90%. ${kpis.tasks_handled_in_onsite} of ${due} decided before the deadline`}
+            {...(kpis.adoption_rate !== null && kpis.adoption_rate < 0.9 ? { tone: 'warn' as const } : {})}
+          />
+          <Kpi label="Deliveries confirmed digitally" value={kpis.deliveries_confirmed_digitally} hint="Proof of delivery in OnSite, not on paper" />
+        </div>
+      </div>
+    </Card>
+  );
+}
 
 function Login({ onDone }: { onDone: () => void }) {
   const [password, setPassword] = useState('');
@@ -189,12 +223,14 @@ export function App() {
               </div>
             </Card>
 
+            {data.pilot_kpis && <PilotKpis kpis={data.pilot_kpis} />}
+
             <div className="kpis">
               <Kpi label="Orders processed" value={data.kpis.total_orders} hint="Simulated data" />
               <Kpi label="At risk now" value={data.kpis.at_risk_orders} {...(data.kpis.at_risk_orders ? { tone: 'warn' as const } : {})} />
               <Kpi label="Shortages caught at order time" value={data.kpis.early_shortage_detected} />
               <Kpi label="Delivered" value={data.kpis.delivered_orders} />
-              <Kpi label="Simulated OTIF" value={formatPercent(data.kpis.simulated_otif_rate)} hint="Not a real-world result" />
+              {!data.pilot_kpis && <Kpi label="Simulated OTIF" value={formatPercent(data.kpis.simulated_otif_rate)} hint="Not a real-world result" />}
             </div>
 
             <div className="grid grid-2">

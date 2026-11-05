@@ -95,6 +95,8 @@ describe('Checkpoint 6: hardening', () => {
       ['get', '/api/v1/orders'],
       ['get', '/api/v1/orders/{id}'],
       ['post', '/api/v1/orders/{id}/cancel'],
+      ['post', '/api/v1/orders/{id}/accept-available'],
+      ['post', '/api/v1/orders/parse'],
       ['get', '/api/v1/orders/{id}/confirmation'],
       ['get', '/api/v1/staff/tasks'],
       ['get', '/api/v1/staff/tasks/{id}/picklist'],

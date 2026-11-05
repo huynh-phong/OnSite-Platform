@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, LogController } from 'fastify';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import type { Db } from './db.js';
@@ -29,7 +29,7 @@ export async function buildApp(pool: Db, options: AppOptions): Promise<FastifyIn
       },
     },
     genReqId: () => randomUUID(),
-    requestIdLogLabel: 'request_id',
+    logController: new LogController({ requestIdLogLabel: 'request_id' }),
   });
 
   app.addHook('onSend', async (request, reply) => {

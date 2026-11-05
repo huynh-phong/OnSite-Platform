@@ -13,10 +13,18 @@ export interface SuggestInput {
   allowedValues: readonly string[] | null;
 }
 
+/** What the order reader sees: the customer's text, with contact details already removed, and the catalog. */
+export interface ParseOrderInput {
+  text: string;
+  catalog: { sku_id: string; name: string; unit: string }[];
+}
+
 export interface LlmProvider {
   readonly modelVersion: string;
   /** Returns the provider's output as is. It is untrusted and validated by the caller. */
   suggest(input: SuggestInput, signal: AbortSignal): Promise<unknown>;
+  /** Reads a free-text order into draft lines. Untrusted, validated by the caller; nothing is ordered here. */
+  parseOrder?(input: ParseOrderInput, signal: AbortSignal): Promise<unknown>;
 }
 
 export interface ValidSuggestion {
@@ -104,9 +112,80 @@ const CATEGORY_RULES: [RegExp, string][] = [
   [/virke|timber|trä|regel|reglar|plank|panel|plywood|lumber|wood|bräd|board/, 'timber'],
 ];
 
+/** The unit a few words of text mean, by fixed rules. Used to check a unit, never to convert one. */
+export function unitFromText(text: string): string | null {
+  const lower = ` ${text.toLowerCase()} `;
+  return UNIT_RULES.find(([pattern]) => pattern.test(lower))?.[1] ?? null;
+}
+
+/** Swedish words a site manager writes, mapped to the words in the catalog names. */
+const ORDER_SYNONYMS: [RegExp, string][] = [
+  [/byggcement|cement/, 'cement'],
+  [/betong/, 'concrete'],
+  [/murbruk|bruk/, 'mortar'],
+  [/snabb/, 'rapid'],
+  [/gips/, 'gypsum'],
+  [/skiv|skivor/, 'board'],
+  [/våtrum/, 'wet'],
+  [/innertak|tak/, 'ceiling'],
+  [/brand/, 'fire'],
+  [/regel|reglar|virke|konstruktionsvirke/, 'timber'],
+  [/hyvlad|bräd/, 'planed'],
+  [/trall|tryckimpregnerad/, 'decking'],
+  [/plywood|plyfa/, 'plywood'],
+  [/glasull/, 'glass'],
+  [/stenull/, 'stone'],
+  [/cellplast|eps/, 'eps'],
+  [/ångspärr|plastfolie|byggfolie/, 'vapour'],
+];
+
+function orderTokens(text: string): Set<string> {
+  const lower = text.toLowerCase().replace(/(\d)\s*(kg|mm|m)\b/g, '$1 $2');
+  const tokens = new Set(lower.split(/[^a-zåäö0-9x]+/).filter(Boolean));
+  for (const [pattern, word] of ORDER_SYNONYMS) if (pattern.test(lower)) tokens.add(word);
+  return tokens;
+}
+
+/** The first number that is a quantity, not a size or a time: not followed by kg, mm, m, x or a colon. */
+const QUANTITY = /(?:^|\s)(\d{1,6})(?!\d|\s*(?:kg|mm|cm|m\b|m2|m²|x|:|[.,]\d))/i;
+
 /** Deterministic keyword rules, for tests and for running without a provider. Not a real model. */
 export class MockLlmProvider implements LlmProvider {
   readonly modelVersion = 'mock-rules-v1';
+
+  async parseOrder(input: ParseOrderInput): Promise<unknown> {
+    const products = input.catalog.map((product) => ({ product, tokens: orderTokens(`${product.name} ${product.unit}`) }));
+    const lines = [];
+    // Sentence ends split too, so greetings and delivery notes do not end up inside a quoted line.
+    for (const fragment of input.text.split(/\n|;|,|[.!?](?=\s|$)|\boch\b|\band\b|\+/i)) {
+      const sentence = fragment.trim();
+      const quantity = QUANTITY.exec(` ${sentence}`);
+      if (!sentence || !quantity) continue;
+      // Quote from the quantity on ("Vi behöver 20 säckar" -> "20 säckar"); match on the whole fragment.
+      const source = sentence.slice(quantity.index + quantity[0].length - quantity[1]!.length - 1);
+      const words = orderTokens(sentence);
+      const scored = products
+        .map(({ product, tokens }) => {
+          const matched = [...tokens].filter((token) => words.has(token)).length;
+          return { product, matched, unmatched: tokens.size - matched };
+        })
+        .filter((candidate) => candidate.matched >= 2)
+        .sort((a, b) => b.matched - a.matched || a.unmatched - b.unmatched || a.product.sku_id.localeCompare(b.product.sku_id));
+      const best = scored[0];
+      const unitWord = new RegExp(`${quantity[1]}\\s+([a-zåäö²0-9-]+)`, 'i').exec(source)?.[1] ?? '';
+      // Two equally good products means the text does not say which: a person has to choose.
+      const tied = scored[1] && scored[1].matched === best?.matched && scored[1].unmatched === best?.unmatched;
+      lines.push({
+        sku_id: best?.product.sku_id ?? null,
+        quantity: Number(quantity[1]),
+        unit_text: unitFromText(unitWord) ? unitWord : '',
+        source_text: source,
+        confidence: !best ? 0 : tied ? 0.55 : best.matched >= 4 ? 0.9 : 0.75,
+        reason: !best ? 'No product matched the words' : `Keyword rules matched ${best.matched} words of "${best.product.name}"`,
+      });
+    }
+    return { lines };
+  }
 
   async suggest(input: SuggestInput): Promise<unknown> {
     const text = input.rawValue.trim().toLowerCase();
@@ -166,6 +245,70 @@ function outputSchema(input: SuggestInput) {
   };
 }
 
+const ORDER_PROMPT = `You read a building contractor's order message for a Swedish building-materials retailer and list the
+products it asks for. A person checks every line before anything is ordered.
+
+- Use only sku_id values from the catalog. If a line does not clearly name one product, use null.
+- quantity is the number of items the message asks for, as written. Do not convert units or pack sizes.
+- unit_text is the unit word exactly as written next to the quantity (for example "säckar", "pall", "st"), or "".
+- source_text is the exact part of the message the line comes from, copied character for character.
+- Ignore delivery times, addresses, names and greetings.
+- confidence is your probability from 0 to 1 that both the product and the quantity are right. reason is one short sentence.`;
+
+function buildOrderPrompt(input: ParseOrderInput): string {
+  return JSON.stringify({ message: input.text, catalog: input.catalog });
+}
+
+function orderSchema(input: ParseOrderInput) {
+  return {
+    type: 'object',
+    properties: {
+      lines: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            sku_id: { type: ['string', 'null'], enum: [...input.catalog.map((product) => product.sku_id), null] },
+            quantity: { type: 'integer' },
+            unit_text: { type: 'string' },
+            source_text: { type: 'string' },
+            confidence: { type: 'number' },
+            reason: { type: 'string' },
+          },
+          required: ['sku_id', 'quantity', 'unit_text', 'source_text', 'confidence', 'reason'],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ['lines'],
+    additionalProperties: false,
+  };
+}
+
+function geminiOrderSchema(input: ParseOrderInput) {
+  return {
+    type: 'OBJECT',
+    properties: {
+      lines: {
+        type: 'ARRAY',
+        items: {
+          type: 'OBJECT',
+          properties: {
+            sku_id: { type: 'STRING', enum: input.catalog.map((product) => product.sku_id), nullable: true },
+            quantity: { type: 'INTEGER' },
+            unit_text: { type: 'STRING' },
+            source_text: { type: 'STRING' },
+            confidence: { type: 'NUMBER' },
+            reason: { type: 'STRING' },
+          },
+          required: ['sku_id', 'quantity', 'unit_text', 'source_text', 'confidence', 'reason'],
+        },
+      },
+    },
+    required: ['lines'],
+  };
+}
+
 const DEFAULT_ANTHROPIC_MODEL = 'claude-opus-5-5';
 
 /** Real provider. The SDK loads only when this provider is selected. */
@@ -186,17 +329,25 @@ export class AnthropicLlmProvider implements LlmProvider {
     return this.client;
   }
 
-  async suggest(input: SuggestInput, signal: AbortSignal): Promise<unknown> {
+  suggest(input: SuggestInput, signal: AbortSignal): Promise<unknown> {
+    return this.complete(SYSTEM_PROMPT, buildUserPrompt(input), outputSchema(input), signal);
+  }
+
+  parseOrder(input: ParseOrderInput, signal: AbortSignal): Promise<unknown> {
+    return this.complete(ORDER_PROMPT, buildOrderPrompt(input), orderSchema(input), signal);
+  }
+
+  private async complete(system: string, content: string, schema: object, signal: AbortSignal): Promise<unknown> {
     const client = await this.getClient();
     const params = {
       model: this.modelVersion,
-      max_tokens: 2000,
-      system: SYSTEM_PROMPT,
-      output_config: { effort: 'low', format: { type: 'json_schema', schema: outputSchema(input) } },
+      max_tokens: 4000,
+      system,
+      output_config: { effort: 'low', format: { type: 'json_schema', schema } },
       // Lets the API retry on another model if a safety classifier declines this short request.
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
-      messages: [{ role: 'user', content: buildUserPrompt(input) }],
+      messages: [{ role: 'user', content }],
     };
     const response = await client.beta.messages.create(params as never, { signal, maxRetries: 0 });
     const message = response as unknown as { stop_reason: string; content: { type: string; text?: string }[] };
@@ -250,16 +401,24 @@ export class GeminiLlmProvider implements LlmProvider {
     return this.client;
   }
 
-  async suggest(input: SuggestInput, signal: AbortSignal): Promise<unknown> {
+  suggest(input: SuggestInput, signal: AbortSignal): Promise<unknown> {
+    return this.complete(SYSTEM_PROMPT, buildUserPrompt(input), geminiSchema(input), signal);
+  }
+
+  parseOrder(input: ParseOrderInput, signal: AbortSignal): Promise<unknown> {
+    return this.complete(ORDER_PROMPT, buildOrderPrompt(input), geminiOrderSchema(input), signal);
+  }
+
+  private async complete(system: string, contents: string, schema: object, signal: AbortSignal): Promise<unknown> {
     const client = await this.getClient();
     const request = () =>
       client.models.generateContent({
         model: this.modelVersion,
-        contents: buildUserPrompt(input),
+        contents,
         config: {
-          systemInstruction: SYSTEM_PROMPT,
+          systemInstruction: system,
           responseMimeType: 'application/json',
-          responseSchema: geminiSchema(input) as never,
+          responseSchema: schema as never,
           abortSignal: signal,
         },
       });

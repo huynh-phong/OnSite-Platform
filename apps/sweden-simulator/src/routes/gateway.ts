@@ -144,6 +144,18 @@ export function registerGateway(app: FastifyInstance, pool: Db, options: Gateway
     { ...guarded, schema: schema('Turn the simulated API outage on or off', { body: OutageBody }) },
     async (request, reply) => forward(reply, await legacy('POST', '/legacy/admin/outage', request.body)),
   );
+  app.post<{ Params: { id: string }; Body: { up: boolean } }>(
+    '/ui-api/stores/:id/link',
+    {
+      ...guarded,
+      schema: schema("Take a store server's link down or bring it back", {
+        params: Type.Object({ id: Type.String({ minLength: 1, maxLength: 64 }) }),
+        body: Type.Object({ up: Type.Boolean() }),
+      }),
+    },
+    async (request, reply) =>
+      forward(reply, await legacy('POST', `/legacy/admin/stores/${encodeURIComponent(request.params.id)}/link`, request.body)),
+  );
   app.post<{ Body: { scenario: 'S1' | 'S2'; confirm: string } }>(
     '/ui-api/demo/reset',
     {

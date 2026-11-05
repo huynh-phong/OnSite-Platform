@@ -208,7 +208,18 @@ test.describe('Scenario B: S1 split order, all through the interface', () => {
     await buyer.goto(`${WEB}/customer/catalog`);
     await buyer.getByLabel('Quantity of Portland cement 25 kg bag').fill('5');
     await buyer.getByLabel('Construction site').selectOption({ label: 'Demo Site 2, Skövde' });
-    await buyer.getByLabel('Requested delivery (Swedish time)').fill('2026-01-01T12:00');
+    // 15 minutes from now in Sweden: still in the future, so it is accepted, but sooner than any node can deliver.
+    const soon = new Intl.DateTimeFormat('sv-SE', {
+      timeZone: 'Europe/Stockholm',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+      .format(new Date(Date.now() + 15 * 60_000))
+      .replace(' ', 'T');
+    await buyer.getByLabel('Requested delivery (Swedish time)').fill(soon);
     await buyer.getByRole('button', { name: 'Place order' }).click();
     await expect(buyer.getByText('This delivery may be late')).toBeVisible();
     // Which node is earliest for this far site depends on the time of day and the dispatch slots.

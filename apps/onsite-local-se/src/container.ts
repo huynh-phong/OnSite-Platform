@@ -10,6 +10,8 @@ import { InventoryService } from './modules/inventory/inventory.service.js';
 import { DemoService } from './modules/metrics/demo.service.js';
 import { LatencyTracker, MetricsService } from './modules/metrics/metrics.service.js';
 import { NormalizationService } from './modules/normalization/normalization.service.js';
+import { OrderIntakeService } from './modules/intake/order-intake.service.js';
+import { NodeHealthService } from './modules/nodes/node-health.service.js';
 import { NotificationHub } from './modules/notifications/hub.js';
 import { OrdersService } from './modules/orders/orders.service.js';
 import { OutboxSender } from './modules/outbox/outbox.service.js';
@@ -35,6 +37,8 @@ export function buildContainer(config: Config, pool: Db, log: FastifyBaseLogger,
   const allocation = new AllocationService(pool, hub, config, simulator, inventory, reservations, eta, log);
   const orders = new OrdersService(pool, hub, config, allocation, reservations);
   const tasks = new TasksService(pool, hub, config, simulator, inventory, reservations, allocation, eta, log);
+  const nodes = new NodeHealthService(pool, config, simulator, tasks, log);
+  const intake = new OrderIntakeService(pool, config, llm, log);
   const documents = new DocumentsService(pool, config, orders);
   const catalog = new CatalogService(pool, config, inventory);
   const metrics = new MetricsService(pool, config, inventory, latency);
@@ -54,6 +58,8 @@ export function buildContainer(config: Config, pool: Db, log: FastifyBaseLogger,
     allocation,
     orders,
     tasks,
+    nodes,
+    intake,
     documents,
     catalog,
     metrics,

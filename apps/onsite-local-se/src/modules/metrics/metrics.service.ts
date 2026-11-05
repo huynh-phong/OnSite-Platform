@@ -35,7 +35,7 @@ export class MetricsService {
   ) {}
 
   async snapshot() {
-    const [counters, outbox, orders, reviewAge, confirmation, nodeAges, freshness] = await Promise.all([
+    const [counters, outbox, orders, reviewAge, confirmation, nodeAges, freshness, heartbeats] = await Promise.all([
       readCounters(this.pool),
       this.pool.query<{ pending: string; delivered: string; dead: string; oldest_age_s: number | null }>(
         `SELECT count(*) FILTER (WHERE status = 'PENDING') AS pending,
@@ -72,7 +72,13 @@ export class MetricsService {
            FROM inventory_view GROUP BY node_id ORDER BY node_id`,
       ),
       this.inventory.freshness(),
+      this.pool.query<{ store_id: string; heartbeat_age_s: number | null }>(
+        // How long the node had been silent when the source was last read, the same measure routing uses.
+        `SELECT store_id, EXTRACT(EPOCH FROM heartbeat_checked_at - last_heartbeat_at)::float8 AS heartbeat_age_s FROM stores`,
+      ),
     ]);
+    const heartbeatAge = new Map(heartbeats.rows.map((row) => [row.store_id, row.heartbeat_age_s]));
+    const heartbeatTimeout = this.config.nodes.heartbeatTimeoutSeconds;
 
     const value = (name: string) => counters[name] ?? 0;
     const hits = value(COUNTERS.cacheHits);
@@ -91,6 +97,7 @@ export class MetricsService {
         verified_age_s: freshness.verifiedAgeSeconds,
         stale_after_s: this.config.inventory.staleAfterSeconds,
         sync_failures_total: value(COUNTERS.syncFailures),
+        heartbeat_timeout_s: heartbeatTimeout,
         // inventory_freshness_s per node is the time since the feed was verified; the per-node ages show
         // how long ago stock last changed there, which is normal for a quiet node.
         nodes: nodeAges.rows.map((row) => ({
@@ -99,6 +106,9 @@ export class MetricsService {
           inventory_freshness_s: freshness.verifiedAgeSeconds,
           newest_source_change_age_s: row.newest_source_age_s,
           newest_ingest_age_s: row.newest_ingest_age_s,
+          heartbeat_age_s: heartbeatAge.get(row.node_id) ?? null,
+          // Circuit breaker: routing leaves this node out, and its unapproved tasks are moved elsewhere.
+          offline: (heartbeatAge.get(row.node_id) ?? 0) > heartbeatTimeout,
         })),
       },
       outbox: {

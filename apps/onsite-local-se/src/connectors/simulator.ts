@@ -127,6 +127,11 @@ export class SimulatorClient {
     await call('/legacy/admin/reset', { scenario, confirm: 'RESET' });
   }
 
+  /** When each node's own server last reported to the source. */
+  nodeHeartbeats(): Promise<{ store_id: string; last_heartbeat_at: string }[]> {
+    return this.request('GET', '/legacy/stores');
+  }
+
   inventoryFeed(sinceSeq: number): Promise<FeedPage<SourceInventory>> {
     return this.request('GET', `/legacy/inventory?since_seq=${sinceSeq}`);
   }

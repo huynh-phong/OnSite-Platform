@@ -214,30 +214,149 @@ describe('placing an order', () => {
   });
 });
 
-describe('tracking an order', () => {
-  it('S2: explains the shortage of 10, offers no fake acceptance, and points to a new order', async () => {
+describe('reading a pasted order message with AI', () => {
+  const gypsum = { ...cement, sku_id: 'SE-GYP-13-2400', name: 'Gypsum board 13 mm 900x2400', category: 'gypsum_board', base_unit: 'sheet', pack_size_kg: null };
+  const draftLine = (overrides: Record<string, unknown>) => ({
+    sku_id: 'SE-CEM-025',
+    name: 'Portland cement 25 kg bag',
+    quantity: 20,
+    unit: 'bag',
+    unit_text: 'säckar',
+    stated_unit: 'bag',
+    source_text: '20 säckar Byggcement 25kg',
+    confidence: 0.9,
+    reason: 'Matched',
+    checks: [],
+    ...overrides,
+  });
+  const draft = {
+    lines: [
+      draftLine({}),
+      draftLine({
+        sku_id: 'SE-GYP-13-2400',
+        name: gypsum.name,
+        quantity: 2,
+        unit: 'sheet',
+        unit_text: 'pall',
+        stated_unit: 'pallet',
+        source_text: '2 pall gips 13mm 900x2400',
+        checks: ['UNIT_MISMATCH'],
+      }),
+    ],
+    dropped_lines: 0,
+    contact_details_removed: 1,
+    model: 'mock-rules-v1',
+    draft_only: true,
+  };
+
+  it('ticks only lines with nothing to check, and adds what the person confirms to the cart', async () => {
+    loginAs('customer');
+    const calls = mockApi({ ...baseRoutes, 'GET /products': [cement, gypsum], 'POST /orders/parse': draft });
+    renderAt('/customer/catalog');
+    await userEvent.type(await screen.findByLabelText(/Order text/), '20 säckar Byggcement 25kg, 2 pall gips 13mm 900x2400');
+    await userEvent.click(screen.getByRole('button', { name: 'Read with AI' }));
+
+    expect(await screen.findByText('“2 pall gips 13mm 900x2400”')).toBeInTheDocument();
+    expect(screen.getByText(/1 contact detail\(s\) were removed/)).toBeInTheDocument();
+    expect(screen.getByText(/You wrote “pall”; this is sold per sheet/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Add line 1')).toBeChecked();
+    expect(screen.getByLabelText('Add line 2')).not.toBeChecked();
+    expect(calls.find((call) => call.url.endsWith('/orders/parse'))?.body).toEqual({ text: '20 säckar Byggcement 25kg, 2 pall gips 13mm 900x2400' });
+
+    // The person fixes the unit by hand: 2 pallets is their call, here 60 sheets.
+    const quantity = screen.getByLabelText('Quantity for line 2');
+    await userEvent.clear(quantity);
+    await userEvent.type(quantity, '60');
+    await userEvent.click(screen.getByLabelText('Add line 2'));
+    await userEvent.click(screen.getByRole('button', { name: 'Add 2 checked lines to the order' }));
+
+    expect(await screen.findByText(/2 lines added to your order/)).toBeInTheDocument();
+    expect(JSON.parse(sessionStorage.getItem('onsite.cart')!)).toEqual({ 'SE-CEM-025': 20, 'SE-GYP-13-2400': 60 });
+    // Nothing was ordered by reading.
+    expect(calls.some((call) => call.method === 'POST' && call.url.endsWith('/api/v1/orders'))).toBe(false);
+  });
+
+  it('falls back to the catalog when the reader is unavailable', async () => {
     loginAs('customer');
     mockApi({
       ...baseRoutes,
-      'GET /orders/SE-ORD-000002': order({
-        order_id: 'SE-ORD-000002',
-        status: 'NEEDS_REVIEW',
-        review_reason: 'INSUFFICIENT_STOCK',
-        fulfillable_qty: 90,
-        early_shortage_detected: true,
-        allocations: [],
-        shipments: [],
-        eta: null,
+      'POST /orders/parse': () => ({
+        status: 503,
+        body: { error: { code: 'AI_UNAVAILABLE', message: 'The order reader is not available right now. Add the products from the catalog instead.', request_id: 'r' } },
       }),
+    });
+    renderAt('/customer/catalog');
+    await userEvent.type(await screen.findByLabelText(/Order text/), '20 säckar cement');
+    await userEvent.click(screen.getByRole('button', { name: 'Read with AI' }));
+    expect(await screen.findByText(/Add the products from the catalog instead/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Quantity of Portland cement 25 kg bag')).toBeInTheDocument();
+  });
+});
+
+describe('tracking an order', () => {
+  const shortOrder = (overrides: Record<string, unknown> = {}) =>
+    order({
+      order_id: 'SE-ORD-000002',
+      status: 'NEEDS_REVIEW',
+      review_reason: 'INSUFFICIENT_STOCK',
+      fulfillable_qty: 90,
+      early_shortage_detected: true,
+      allocations: [],
+      shipments: [],
+      eta: null,
+      ...overrides,
+    });
+
+  it('S2: explains the shortage of 10, and accepting the 90 goes through the server', async () => {
+    loginAs('customer');
+    let accepted = false;
+    const calls = mockApi({
+      ...baseRoutes,
+      'GET /orders/SE-ORD-000002': () => ({
+        body: accepted
+          ? order({ order_id: 'SE-ORD-000002', items: [{ sku_id: 'SE-CEM-025', quantity: 90, requested_quantity: 100, unit: 'bag', unit_price_sek: 89 }] })
+          : shortOrder(),
+      }),
+      'POST /orders/SE-ORD-000002/accept-available': () => {
+        accepted = true;
+        return { body: order({ order_id: 'SE-ORD-000002' }) };
+      },
     });
     renderAt('/customer/orders/SE-ORD-000002');
     expect(await screen.findByText('This order was not confirmed')).toBeInTheDocument();
     expect(screen.getByText(/detected as you ordered/)).toBeInTheDocument();
     expect(screen.getByText('90')).toBeInTheDocument();
     expect(screen.getByText(/which is 10 short/)).toBeInTheDocument();
+    expect(screen.queryByText(/Waiting for each shipping node/)).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Accept the 90 available' }));
+    expect(await screen.findByText('You accepted this instead of 100')).toBeInTheDocument();
+    expect(calls.find((call) => call.method === 'POST')?.body).toEqual({ version: 5 });
+    expect(screen.queryByText('This order was not confirmed')).not.toBeInTheDocument();
+  });
+
+  it('offers no acceptance when the source, not stock, was the problem, and points to a new order', async () => {
+    loginAs('customer');
+    mockApi({ ...baseRoutes, 'GET /orders/SE-ORD-000002': shortOrder({ review_reason: 'SOURCE_UNAVAILABLE', fulfillable_qty: null }) });
+    renderAt('/customer/orders/SE-ORD-000002');
+    expect(await screen.findByText('This order was not confirmed')).toBeInTheDocument();
     expect(screen.getByText(/place a new order/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /accept/i })).not.toBeInTheDocument();
-    expect(screen.queryByText(/Waiting for each shipping node/)).not.toBeInTheDocument();
+  });
+
+  it('shows the server refusal when the stock is gone by the time the customer accepts', async () => {
+    loginAs('customer');
+    mockApi({
+      ...baseRoutes,
+      'GET /orders/SE-ORD-000002': shortOrder(),
+      'POST /orders/SE-ORD-000002/accept-available': () => ({
+        status: 409,
+        body: { error: { code: 'NOTHING_AVAILABLE', message: 'None of this order can be supplied now', request_id: 'r' } },
+      }),
+    });
+    renderAt('/customer/orders/SE-ORD-000002');
+    await userEvent.click(await screen.findByRole('button', { name: 'Accept the 90 available' }));
+    expect(await screen.findByText(/None of this order can be supplied now/)).toBeInTheDocument();
   });
 
   it('clears the cart once the order is placed', async () => {

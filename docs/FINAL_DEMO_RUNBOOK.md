@@ -95,6 +95,8 @@ If it keeps failing, restart with `ONSITE_LLM_PROVIDER=mock`, and say on camera 
 
 Expected: **Needs review**, at most 90 available, 10 short. Nothing is held and no false confirmation appears.
 
+3. Press **Accept the 90 available**. Expected: **Awaiting approval**, 54 from Store B and 36 from the hub. The item reads "You accepted this instead of 100". Stock was checked again at that moment, and each node still approves its part.
+
 ### E. S1: split order, end to end
 
 1. As `admin.se`, reset to **S1** with the connection On.
@@ -112,11 +114,32 @@ Expected: **Needs review**, at most 90 available, 10 short. Nothing is held and 
 3. As the customer, place another order. It works normally.
 4. As `admin.se`, **Operations → Events to Central:** **Waiting to send** grows.
 5. Press **Restore ingestion**. The waiting count drains, the totals rise once, and **Duplicates ignored** does not inflate the figures.
+6. Show the **Pilot go/no-go KPIs (Round 1)** card: simulated OTIF, delay warnings sent before the customer asked, and node tasks handled in OnSite, each with its Round 1 gate.
 
 ### G. Optional extras
 
 - **Refused access:** as `staff.store-b`, open the address of a hub task. It is refused.
 - **Source outage:** legacy **Demo tools → Start outage**. Staff see a warning and a new order goes to **Needs review**, with no stock promised. Press **Recover**, and it heals by itself.
+
+### H. AI reads a pasted order
+
+1. As the customer, open **Catalog & order** and paste into **Paste an order message**:
+
+   ```
+   Hej! Ring mig på 070-123 45 67. Vi behöver 20 säckar Byggcement 25kg och 2 pall gips 13mm 900x2400. Leverans tis 07:00.
+   ```
+
+2. Press **Read with AI**. Expected: 1 contact detail removed; cement 20, ticked; gypsum 2, not ticked, flagged "You wrote pall; this is sold per sheet".
+3. Correct the gypsum quantity by hand, tick it, and press **Add 2 checked lines to the order**. Nothing is ordered until **Place order**.
+
+### I. Circuit breaker (Round 1, Risk 3)
+
+The demo `.env` sets `NODE_HEARTBEAT_TIMEOUT_SECONDS=60`. The design value is 5 minutes. Say so.
+
+1. Reset S1. As the customer, order 30 bags of cement. It goes to Store B, **Awaiting approval**.
+2. Legacy dashboard → **Demo tools → Store server link** → **Drop link** for Store B.
+3. Within about 70 seconds the order moves to the hub, and **Operations → Inventory by node** shows Store B **Offline: isolated**. A new order also avoids Store B.
+4. Press **Restore**. Store B is back within 10 seconds.
 
 ## 5. If something goes wrong
 

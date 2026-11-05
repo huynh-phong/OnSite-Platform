@@ -36,6 +36,11 @@ export function reservationHealth(taskStatus: string, reservations: repo.Reserva
   return 'OK';
 }
 
+const PAST_DELIVERY_GRACE_MS = 5 * 60_000;
+
+/** Review reasons where stock was the problem, so accepting what is available is a real answer. */
+const ACCEPTABLE_SHORTAGES: readonly string[] = ['INSUFFICIENT_STOCK', 'RESERVATION_CONFLICT'];
+
 function requestHash(body: CreateOrderBody): string {
   const canonical = {
     sales_store_id: body.sales_store_id,
@@ -123,6 +128,10 @@ export class OrdersService {
 
   private async validate(principal: Principal, body: CreateOrderBody): Promise<void> {
     if (!principal.customer_id) throw new AppError(403, 'FORBIDDEN', 'This account has no customer');
+    // A few minutes of grace for clock differences and a form left open; earlier than that cannot be promised.
+    if (new Date(body.requested_delivery_at).getTime() < Date.now() - PAST_DELIVERY_GRACE_MS) {
+      throw new AppError(422, 'DELIVERY_IN_PAST', 'The requested delivery time is in the past');
+    }
     const site = await catalog.getSite(this.pool, body.site_id);
     if (!site) throw new AppError(422, 'UNKNOWN_SITE', 'Unknown site');
     if (site.customer_id !== principal.customer_id) throw new AppError(403, 'FORBIDDEN', 'This site belongs to another customer');
@@ -211,6 +220,52 @@ export class OrdersService {
     return this.view(orderId, principal);
   }
 
+  /**
+   * The customer accepts what can be supplied now, instead of starting over with a new order. Each line is
+   * cut to what the routing planner finds available, keeping the quantity first asked for, and the order is
+   * allocated again with the normal rules. A line with nothing available cannot be dropped this way.
+   */
+  async acceptAvailable(orderId: string, principal: Principal, expectedVersion: number) {
+    const order = await repo.getOrder(this.pool, orderId);
+    if (!order) throw new AppError(404, 'ORDER_NOT_FOUND', 'Order not found');
+    if (order.customer_id !== principal.customer_id) throw new AppError(403, 'FORBIDDEN', 'You may not access this order');
+    const assertAcceptable = (current: repo.Order) => {
+      if (current.version !== expectedVersion) throw new AppError(409, 'VERSION_CONFLICT', 'Order was changed by someone else');
+      if (current.status !== 'NEEDS_REVIEW' || !ACCEPTABLE_SHORTAGES.includes(current.review_reason ?? '')) {
+        throw new AppError(409, 'INVALID_TRANSITION', 'Only an order that was short of stock can be accepted as available');
+      }
+    };
+    assertAcceptable(order);
+
+    const lines = await this.allocation.availableNow(orderId);
+    const empty = lines.filter((line) => line.available === 0);
+    if (empty.length === lines.length) throw new AppError(409, 'NOTHING_AVAILABLE', 'None of this order can be supplied now');
+    if (empty.length) {
+      const skus = empty.map((line) => line.sku_id).join(', ');
+      throw new AppError(409, 'LINE_UNAVAILABLE', `Nothing of ${skus} can be supplied now; place a new order without it`);
+    }
+
+    await inTx(this.pool, this.hub, async (tx) => {
+      const locked = await repo.lockOrder(tx.client, orderId);
+      assertAcceptable(locked);
+      for (const line of lines) await repo.reduceItemQuantity(tx.client, line.item_id, line.available);
+      const accepted = await repo.changeOrder(
+        tx,
+        locked,
+        { review_reason: null, fulfillable_qty: null },
+        {
+          type: 'order.available_accepted',
+          actor: principal.sub,
+          data: { lines: lines.map(({ sku_id, requested, available }) => ({ sku_id, requested, accepted: available })) },
+        },
+        this.config.countryCode,
+      );
+      await repo.transitionOrder(tx, accepted, 'ALLOCATING', principal.sub, this.config.countryCode);
+    });
+    await this.allocation.allocate(orderId, principal.sub);
+    return this.view(orderId, principal);
+  }
+
   async view(orderId: string, principal: Principal) {
     const order = (await repo.getOrder(this.pool, orderId))!;
     const [items, allocations, tasks, shipments, events, reservations] = await Promise.all([
@@ -250,6 +305,7 @@ export class OrdersService {
       items: items.map((item) => ({
         sku_id: item.sku_id,
         quantity: item.quantity,
+        requested_quantity: item.requested_quantity,
         unit: item.unit,
         unit_price_sek: Number(item.unit_price),
       })),

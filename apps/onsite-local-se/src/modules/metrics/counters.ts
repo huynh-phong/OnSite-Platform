@@ -19,6 +19,8 @@ export const COUNTERS = {
   reservationsLost: 'reservations_lost_total',
   atRiskAlerts: 'at_risk_alerts_sent',
   syncFailures: 'sync_failures_total',
+  orderReads: 'order_reader_calls_total',
+  orderReadFailures: 'order_reader_failures_total',
 } as const;
 
 export async function bumpCounter(db: Queryable, name: string, by = 1): Promise<void> {

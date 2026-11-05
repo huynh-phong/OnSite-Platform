@@ -130,6 +130,42 @@ export class TasksService {
   /** Releases this node's stock and looks for the missing quantity elsewhere. */
   async reject(taskId: string, principal: Principal, version: number, reason: string) {
     const task = await this.loadForAction(taskId, principal, version);
+    await this.releaseAndReroute(task, version, principal.sub, reason);
+    return this.result(taskId);
+  }
+
+  /**
+   * Circuit breaker: the node's server stopped reporting, so its unapproved part is moved to other nodes
+   * the same way as a rejection. Returns false if the task was decided or the order moved on meanwhile.
+   */
+  async rerouteFromOfflineNode(taskId: string): Promise<boolean> {
+    const task = await orders.getTask(this.pool, taskId);
+    if (!task || task.status !== 'PENDING_APPROVAL') return false;
+    const timeout = this.config.nodes.heartbeatTimeoutSeconds;
+    const silence = timeout < 120 ? `${timeout} s` : `${Math.round(timeout / 60)} min`;
+    try {
+      await this.releaseAndReroute(
+        task,
+        task.version,
+        'system',
+        `No heartbeat from ${task.node_id} for over ${silence}; moved to another node`,
+        { reason: 'NODE_OFFLINE' },
+      );
+      return true;
+    } catch (error) {
+      if (error instanceof AppError && error.statusCode === 409) return false;
+      throw error;
+    }
+  }
+
+  private async releaseAndReroute(
+    task: orders.Task,
+    version: number,
+    actor: string,
+    reason: string,
+    publicData: Record<string, unknown> = {},
+  ): Promise<void> {
+    const taskId = task.task_id;
     assertTaskTransition(task.status, 'REJECTED');
 
     await inTx(this.pool, this.hub, async (tx) => {
@@ -144,26 +180,26 @@ export class TasksService {
         order,
         current,
         'REJECTED',
-        principal.sub,
+        actor,
         this.config.countryCode,
         { reject_reason: reason },
         { reason },
+        publicData,
       ));
       await orders.markReservationsReleasing(tx.client, { taskId });
       await orders.releaseAllocations(tx.client, { taskId });
-      order = await orders.transitionOrder(tx, order, 'NEEDS_REALLOCATION', principal.sub, this.config.countryCode);
+      order = await orders.transitionOrder(tx, order, 'NEEDS_REALLOCATION', actor, this.config.countryCode);
     });
     await this.reservations.releaseQueued(task.order_id);
 
     await inTx(this.pool, this.hub, async (tx) => {
       const order = await orders.lockOrder(tx.client, task.order_id);
       if (order.status === 'NEEDS_REALLOCATION') {
-        await orders.transitionOrder(tx, order, 'ALLOCATING', principal.sub, this.config.countryCode);
+        await orders.transitionOrder(tx, order, 'ALLOCATING', actor, this.config.countryCode);
       }
     });
     const after = (await orders.getOrder(this.pool, task.order_id))!;
-    if (after.status === 'ALLOCATING') await this.allocation.allocate(task.order_id, principal.sub);
-    return this.result(taskId);
+    if (after.status === 'ALLOCATING') await this.allocation.allocate(task.order_id, actor);
   }
 
   /**

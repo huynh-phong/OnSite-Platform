@@ -10,6 +10,7 @@ import {
   readInventory,
   readProducts,
   receiveStock,
+  setStoreLink,
   type NewProduct,
   type Receipt,
 } from '../services/catalog.js';
@@ -312,6 +313,25 @@ export function registerLegacyRoutes(app: FastifyInstance, pool: Db, options: Le
       if (request.body.confirm !== 'RESET') throw new SimError(400, 'CONFIRMATION_REQUIRED', 'Send confirm="RESET"');
       return seedSimulator(pool, request.body.scenario);
     },
+  );
+
+  app.post<{ Params: { id: string }; Body: { up: boolean } }>(
+    '/legacy/admin/stores/:id/link',
+    {
+      schema: {
+        tags: ['admin'],
+        security,
+        summary:
+          "Controlled failure: take one store server's link down, or bring it back. Its heartbeat stops while down.",
+        params: Type.Object({ id: Type.String({ minLength: 1, maxLength: 64 }) }),
+        body: Type.Object({ up: Type.Boolean() }),
+        response: {
+          200: Type.Object({ store_id: Type.String(), link_up: Type.Boolean(), last_heartbeat_at: Timestamp }),
+          404: ErrorBody,
+        },
+      },
+    },
+    async (request) => setStoreLink(pool, request.params.id, request.body.up),
   );
 
   app.post(

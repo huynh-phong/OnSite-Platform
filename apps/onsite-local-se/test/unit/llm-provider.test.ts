@@ -36,6 +36,23 @@ describe('the labelled test set', () => {
   });
 });
 
+describe('mock order reader', () => {
+  it('quotes each line from its quantity, leaving greetings and delivery notes out', async () => {
+    const catalog = [
+      { sku_id: 'SE-CEM-025', name: 'Portland cement 25 kg bag', unit: 'bag' },
+      { sku_id: 'SE-GYP-13-2400', name: 'Gypsum board 13 mm 900x2400', unit: 'sheet' },
+    ];
+    const text = 'Hej! Ring mig på [removed]. Vi behöver 20 säckar Byggcement 25kg och 2 pall gips 13mm 900x2400. Leverans tis 07:00.';
+    const { lines } = (await new MockLlmProvider().parseOrder({ text, catalog })) as {
+      lines: { sku_id: string; quantity: number; source_text: string }[];
+    };
+    expect(lines.map((line) => [line.sku_id, line.quantity, line.source_text])).toEqual([
+      ['SE-CEM-025', 20, '20 säckar Byggcement 25kg'],
+      ['SE-GYP-13-2400', 2, '2 pall gips 13mm 900x2400'],
+    ]);
+  });
+});
+
 describe('Gemini provider (against a local stand-in)', () => {
   let server: Server;
   let baseUrl: string;

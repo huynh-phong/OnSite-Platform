@@ -5,6 +5,7 @@ import { Alert, Badge, Card, Empty, Kpi, Loading, PageHead } from '../shared/ui'
 import { api, ApiError, explainError, type Confirmation, type OrderDetail, type OrderSummary, type Product, type Site, type Store } from './api';
 import { SystemBanner } from './Layout';
 import { clearOrderKey, idempotencyKeyFor, type OrderBody } from './orderDraft';
+import { OrderReader } from './orderReader';
 import { useLiveData, useSession } from './session';
 
 const OPEN = ['AWAITING_APPROVAL', 'APPROVED', 'DISPATCHING', 'DISPATCHED'];
@@ -194,6 +195,13 @@ export function CatalogPage() {
     });
   };
 
+  const addLines = (added: { sku: string; quantity: number }[]) =>
+    setCart((current) => {
+      const next = { ...current };
+      for (const line of added) next[line.sku] = (next[line.sku] ?? 0) + line.quantity;
+      return next;
+    });
+
   const submit = async () => {
     const body: OrderBody = {
       sales_store_id: salesStore,
@@ -228,6 +236,7 @@ export function CatalogPage() {
     <div className="stack">
       <PageHead title="Catalog & order" subtitle="Only approved products can be ordered. Prices are simulated." />
       <SystemBanner audience="customer" />
+      <OrderReader products={all} onAdd={addLines} />
       <div className="grid grid-side">
         <Card
           title={
@@ -401,7 +410,7 @@ const REVIEW_TEXT: Record<string, string> = {
 };
 
 function eventText(type: string): string {
-  return statusText(type.replace('order.', '').replace('task.', 'task ').replaceAll('.', ' '));
+  return statusText(type.replace('order.', '').replace('task.', 'task ').replaceAll('.', ' ')).replace(/\beta\b/i, 'ETA');
 }
 
 export function SplitBar({ order }: { order: OrderDetail }) {
@@ -425,9 +434,13 @@ export function SplitBar({ order }: { order: OrderDetail }) {
   );
 }
 
-function ShortageCard({ order }: { order: OrderDetail }) {
+/** Review reasons where stock was the problem, so the customer may take what is available instead. */
+const ACCEPTABLE_SHORTAGES = ['INSUFFICIENT_STOCK', 'RESERVATION_CONFLICT'];
+
+function ShortageCard({ order, onAccept, busy }: { order: OrderDetail; onAccept?: (() => void) | undefined; busy: boolean }) {
   const requested = order.items.reduce((sum, item) => sum + item.quantity, 0);
   const fulfillable = order.fulfillable_qty;
+  const canAccept = Boolean(onAccept) && fulfillable !== null && fulfillable > 0 && ACCEPTABLE_SHORTAGES.includes(order.review_reason ?? '');
   return (
     <Alert tone="warn" title="This order was not confirmed">
       <p>{order.review_reason ? (REVIEW_TEXT[order.review_reason] ?? order.review_reason) : ''}</p>
@@ -437,12 +450,31 @@ function ShortageCard({ order }: { order: OrderDetail }) {
           <strong style={{ display: 'inline' }}>{fulfillable}</strong> can be supplied now, which is {requested - fulfillable} short.
         </p>
       )}
-      <p>Nothing is being held for this order. To go ahead, cancel it and place a new order for a quantity that can be supplied.</p>
+      {canAccept ? (
+        <>
+          <p>Nothing is being held for this order yet. You can take what is available now: stock is checked again and reserved, and each shipping node still approves its part.</p>
+          <div className="row">
+            <button type="button" className="btn primary" disabled={busy} onClick={onAccept}>
+              Accept the {fulfillable} available
+            </button>
+          </div>
+        </>
+      ) : (
+        <p>Nothing is being held for this order. To go ahead, cancel it and place a new order for a quantity that can be supplied.</p>
+      )}
     </Alert>
   );
 }
 
-export function OrderDetailView({ orderId, canCancel }: { orderId: string; canCancel: (order: OrderDetail) => boolean }) {
+export function OrderDetailView({
+  orderId,
+  canCancel,
+  canAcceptAvailable = false,
+}: {
+  orderId: string;
+  canCancel: (order: OrderDetail) => boolean;
+  canAcceptAvailable?: boolean;
+}) {
   const order = useLiveData(() => api<OrderDetail>(`/orders/${orderId}`), [orderId]);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -457,6 +489,17 @@ export function OrderDetailView({ orderId, canCancel }: { orderId: string; canCa
     setError(null);
     try {
       await api(`/orders/${data.order_id}/cancel`, { method: 'POST', body: { version: data.version } });
+    } catch (failure) {
+      setError(explainError(failure));
+    }
+    await order.reload();
+    setBusy(false);
+  };
+  const acceptAvailable = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`/orders/${data.order_id}/accept-available`, { method: 'POST', body: { version: data.version } });
     } catch (failure) {
       setError(explainError(failure));
     }
@@ -495,7 +538,9 @@ export function OrderDetailView({ orderId, canCancel }: { orderId: string; canCa
       />
       {error && <Alert tone="danger">{error}</Alert>}
       <OrderProgress status={data.status} />
-      {data.status === 'NEEDS_REVIEW' && <ShortageCard order={data} />}
+      {data.status === 'NEEDS_REVIEW' && (
+        <ShortageCard order={data} busy={busy} onAccept={canAcceptAvailable ? () => void acceptAvailable() : undefined} />
+      )}
       {data.at_risk && (
         <Alert tone="warn" title="This delivery may be late">
           {data.at_risk_reason ?? 'The estimate is later than the time you asked for.'}
@@ -602,6 +647,9 @@ export function OrderDetailView({ orderId, canCancel }: { orderId: string; canCa
                       <td className="mono">{item.sku_id}</td>
                       <td className="num">
                         {item.quantity} {item.unit}
+                        {item.requested_quantity != null && (
+                          <div className="small muted">You accepted this instead of {item.requested_quantity}</div>
+                        )}
                       </td>
                       <td className="num">{formatSek(item.unit_price_sek)}</td>
                     </tr>
@@ -688,7 +736,11 @@ export function CustomerOrderPage() {
         <Link to="/customer/orders">← My orders</Link>
       </div>
       {params.get('new') && <Alert tone="info">Order received. This is what the system has actually confirmed so far.</Alert>}
-      <OrderDetailView orderId={id} canCancel={(order) => session?.role === 'customer' && CUSTOMER_CANCELLABLE.includes(order.status)} />
+      <OrderDetailView
+        orderId={id}
+        canCancel={(order) => session?.role === 'customer' && CUSTOMER_CANCELLABLE.includes(order.status)}
+        canAcceptAvailable={session?.role === 'customer'}
+      />
     </div>
   );
 }
