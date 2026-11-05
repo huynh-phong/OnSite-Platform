@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { CalendarClock, CircleCheck, CircleHelp, Clock, Package, ShieldCheck, Truck } from 'lucide-react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { formatSek, formatTime, orderTone, statusText, stockholmInputToIso, stockholmNoonInput } from '../shared/format';
 import { Alert, Badge, Card, Empty, Kpi, Loading, PageHead } from '../shared/ui';
@@ -95,10 +96,10 @@ export function CustomerHome() {
         </Alert>
       ))}
       <div className="kpis">
-        <Kpi label="Orders in progress" value={list.filter((order) => OPEN.includes(order.status)).length} />
-        <Kpi label="At risk of being late" value={atRisk.length} {...(atRisk.length ? { tone: 'warn' as const } : {})} />
-        <Kpi label="Need review" value={review.length} {...(review.length ? { tone: 'warn' as const } : {})} />
-        <Kpi label="Delivered" value={list.filter((order) => order.status === 'DELIVERED').length} />
+        <Kpi icon={Package} label="Orders in progress" value={list.filter((order) => OPEN.includes(order.status)).length} />
+        <Kpi icon={Clock} label="At risk of being late" value={atRisk.length} {...(atRisk.length ? { tone: 'warn' as const } : {})} />
+        <Kpi icon={CircleHelp} label="Need review" value={review.length} {...(review.length ? { tone: 'warn' as const } : {})} />
+        <Kpi icon={CircleCheck} label="Delivered" value={list.filter((order) => order.status === 'DELIVERED').length} />
       </div>
       <div className="grid grid-side">
         <Card title="Recent orders">
@@ -563,9 +564,9 @@ export function OrderDetailView({
       )}
 
       <div className="kpis">
-        <Kpi label="You asked for delivery" value={<span style={{ fontSize: '1.05rem' }}>{formatTime(data.requested_delivery_at)}</span>} />
-        <Kpi label="Estimated delivery" value={<span style={{ fontSize: '1.05rem' }}>{formatTime(data.eta)}</span>} hint="An estimate from simulated parameters" {...(data.at_risk ? { tone: 'warn' as const } : {})} />
-        <Kpi label="Stock verified" value={<span style={{ fontSize: '1.05rem' }}>{formatTime(data.inventory_as_of)}</span>} />
+        <Kpi icon={CalendarClock} label="You asked for delivery" value={<span style={{ fontSize: '1.05rem' }}>{formatTime(data.requested_delivery_at)}</span>} />
+        <Kpi icon={Truck} label="Estimated delivery" value={<span style={{ fontSize: '1.05rem' }}>{formatTime(data.eta)}</span>} hint="An estimate from simulated parameters" {...(data.at_risk ? { tone: 'warn' as const } : {})} />
+        <Kpi icon={ShieldCheck} label="Stock verified" value={<span style={{ fontSize: '1.05rem' }}>{formatTime(data.inventory_as_of)}</span>} />
       </div>
 
       <div className="grid grid-side">

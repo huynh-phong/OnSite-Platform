@@ -1,26 +1,41 @@
 import { useState, type FormEvent } from 'react';
 import { Navigate, NavLink, Outlet, useLocation } from 'react-router-dom';
-import { Alert, Badge } from '../shared/ui';
+import {
+  Activity,
+  Boxes,
+  ClipboardList,
+  History,
+  LayoutDashboard,
+  ListChecks,
+  LogOut,
+  Package,
+  Sparkles,
+  Truck,
+  Zap,
+  ShieldCheck,
+  type LucideIcon,
+} from 'lucide-react';
+import { Alert, Badge, BrandMark } from '../shared/ui';
 import { formatAge } from '../shared/format';
 import { api, explainError, type Health, type SystemStatus } from './api';
 import { homeFor, LiveProvider, useLive, useLiveData, useSession, type Role } from './session';
 
-const NAV: Record<Role, { to: string; label: string; end?: boolean }[]> = {
+const NAV: Record<Role, { to: string; label: string; icon: LucideIcon; end?: boolean }[]> = {
   customer: [
-    { to: '/customer', label: 'Overview', end: true },
-    { to: '/customer/catalog', label: 'Catalog & order' },
-    { to: '/customer/orders', label: 'My orders' },
+    { to: '/customer', label: 'Overview', icon: LayoutDashboard, end: true },
+    { to: '/customer/catalog', label: 'Catalog & order', icon: Boxes },
+    { to: '/customer/orders', label: 'My orders', icon: Package },
   ],
   staff: [
-    { to: '/staff', label: 'Tasks', end: true },
-    { to: '/staff/history', label: 'History' },
-    { to: '/staff/reviews', label: 'AI review' },
+    { to: '/staff', label: 'Tasks', icon: ListChecks, end: true },
+    { to: '/staff/history', label: 'History', icon: History },
+    { to: '/staff/reviews', label: 'AI review', icon: Sparkles },
   ],
   admin: [
-    { to: '/admin', label: 'Operations', end: true },
-    { to: '/admin/orders', label: 'All orders' },
-    { to: '/admin/tasks', label: 'All tasks' },
-    { to: '/admin/reviews', label: 'AI review' },
+    { to: '/admin', label: 'Operations', icon: Activity, end: true },
+    { to: '/admin/orders', label: 'All orders', icon: Package },
+    { to: '/admin/tasks', label: 'All tasks', icon: ClipboardList },
+    { to: '/admin/reviews', label: 'AI review', icon: Sparkles },
   ],
 };
 
@@ -32,35 +47,47 @@ export function Shell() {
   if (!session) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   return (
     <LiveProvider>
-      <div className={`shell theme-${session.role}`}>
-        <header className="topbar">
+      <div className={`shell app-shell theme-${session.role}`}>
+        <aside className="sidebar">
           <a className="brand" href={homeFor(session.role)}>
-            OnSite<small>{AREA[session.role]}</small>
+            <BrandMark />
+            <span className="brand-text">
+              OnSite<small>{AREA[session.role]}</small>
+            </span>
           </a>
-          <nav className="nav" aria-label="Main">
+          <nav className="side-nav" aria-label="Main">
             {NAV[session.role].map((item) => (
               <NavLink key={item.to} to={item.to} end={item.end ?? false}>
+                <item.icon size={17} aria-hidden="true" />
                 {item.label}
               </NavLink>
             ))}
           </nav>
-          <div className="userbox">
+          <div className="sidebar-foot">
             <LiveIndicator />
-            <span>
-              {session.user_id}
-              {session.store_id ? ` · ${session.store_id}` : ''}
-            </span>
-            <button type="button" onClick={() => logout()}>
+            <div className="user-chip">
+              <span className="avatar" aria-hidden="true">
+                {session.user_id.slice(0, 1).toUpperCase()}
+              </span>
+              <span className="user-name">
+                {session.user_id}
+                {session.store_id && <small>{session.store_id}</small>}
+              </span>
+            </div>
+            <button type="button" className="logout" onClick={() => logout()}>
+              <LogOut size={15} aria-hidden="true" />
               Log out
             </button>
           </div>
-        </header>
-        <main className="main">
-          <Outlet />
-        </main>
-        <footer className="main small muted no-print" style={{ flex: 0, paddingTop: 0 }}>
-          All times are Swedish time. Stores, customers, prices and travel times are simulated.
-        </footer>
+        </aside>
+        <div className="app-main">
+          <main className="main">
+            <Outlet />
+          </main>
+          <footer className="main page-foot small muted no-print">
+            All times are Swedish time. Stores, customers, prices and travel times are simulated.
+          </footer>
+        </div>
         <Toasts />
       </div>
     </LiveProvider>
@@ -70,7 +97,7 @@ export function Shell() {
 function LiveIndicator() {
   const { connected } = useLive();
   return (
-    <span title="Live updates. Data always comes from the server; this only signals changes." className="small">
+    <span title="Live updates. Data always comes from the server; this only signals changes." className={`live small ${connected ? 'on' : ''}`}>
       <span className={`live-dot ${connected ? 'on' : ''}`} />
       {connected ? 'Live' : 'Reconnecting'}
     </span>
@@ -128,11 +155,26 @@ export function LoginPage() {
   };
 
   return (
-    <div className="center-card">
-      <section className="card">
-        <div className="card-body stack">
+    <div className="login-split">
+      <aside className="login-hero">
+        <div className="login-hero-brand">
+          <BrandMark size={34} />
+          OnSite
+        </div>
+        <div className="login-hero-copy">
+          <h2>Building materials, on site and on time.</h2>
+          <ul>
+            <li><Zap size={18} aria-hidden="true" /> Live stock across every store and hub</li>
+            <li><Truck size={18} aria-hidden="true" /> Split deliveries with an honest ETA</li>
+            <li><ShieldCheck size={18} aria-hidden="true" /> AI suggests, a person decides</li>
+          </ul>
+        </div>
+        <p className="login-hero-foot">Sweden pilot · simulated data</p>
+      </aside>
+      <section className="login-panel">
+        <div className="login-form stack">
           <div>
-            <h1>OnSite</h1>
+            <h1>Log in to OnSite</h1>
             <p className="muted">Order fulfilment for building materials, Sweden. Demo environment with simulated data.</p>
           </div>
           {notice && <Alert tone="warn">{notice}</Alert>}
@@ -146,7 +188,7 @@ export function LoginPage() {
               Password
               <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
             </label>
-            <button className="btn primary" type="submit" disabled={busy}>
+            <button className="btn primary block" type="submit" disabled={busy}>
               {busy ? 'Logging in…' : 'Log in'}
             </button>
           </form>

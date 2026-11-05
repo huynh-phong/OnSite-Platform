@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { CircleCheck, CircleX, Gauge, Hourglass, Package, RefreshCw, Send, Sparkles } from 'lucide-react';
 import { formatAge, formatMs, formatPercent, formatTime } from '../shared/format';
 import { Alert, Badge, Card, Empty, Kpi, Loading, PageHead } from '../shared/ui';
 import { api, explainError, type Metrics, type OrderSummary, type SystemStatus } from './api';
@@ -64,28 +65,28 @@ export function AdminHome() {
         <>
           <h2>Three different delays, measured separately</h2>
           <div className="kpis">
-            <Kpi label="Local API latency, p50 / p95" value={<span style={{ fontSize: '1.1rem' }}>{formatMs(m.api.p50_ms)} / {formatMs(m.api.p95_ms)}</span>} hint={`${m.api.samples} requests`} />
-            <Kpi label="Inventory feed verified" value={<span style={{ fontSize: '1.1rem' }}>{formatAge(m.inventory.verified_age_s)} ago</span>} hint="How current Local's stock view is" />
-            <Kpi label="Oldest event not yet at Central" value={<span style={{ fontSize: '1.1rem' }}>{m.outbox.outbox_pending ? formatAge(m.outbox.outbox_oldest_age_s) : 'None'}</span>} hint="Sync lag itself is shown on Central" />
+            <Kpi icon={Gauge} label="Local API latency, p50 / p95" value={<span style={{ fontSize: '1.1rem' }}>{formatMs(m.api.p50_ms)} / {formatMs(m.api.p95_ms)}</span>} hint={`${m.api.samples} requests`} />
+            <Kpi icon={RefreshCw} label="Inventory feed verified" value={<span style={{ fontSize: '1.1rem' }}>{formatAge(m.inventory.verified_age_s)} ago</span>} hint="How current Local's stock view is" />
+            <Kpi icon={Send} label="Oldest event not yet at Central" value={<span style={{ fontSize: '1.1rem' }}>{m.outbox.outbox_pending ? formatAge(m.outbox.outbox_oldest_age_s) : 'None'}</span>} hint="Sync lag itself is shown on Central" />
           </div>
 
           <h2>Events to Central</h2>
           <div className="kpis">
-            <Kpi label="Waiting to send" value={m.outbox.outbox_pending} {...(m.outbox.outbox_pending > 20 ? { tone: 'warn' as const } : {})} hint="Orders carry on regardless" />
-            <Kpi label="Delivered" value={m.outbox.outbox_delivered} />
-            <Kpi label="Refused for good" value={m.outbox.outbox_dead} {...(m.outbox.outbox_dead ? { tone: 'danger' as const } : {})} />
+            <Kpi icon={Hourglass} label="Waiting to send" value={m.outbox.outbox_pending} {...(m.outbox.outbox_pending > 20 ? { tone: 'warn' as const } : {})} hint="Orders carry on regardless" />
+            <Kpi icon={CircleCheck} label="Delivered" value={m.outbox.outbox_delivered} />
+            <Kpi icon={CircleX} label="Refused for good" value={m.outbox.outbox_dead} {...(m.outbox.outbox_dead ? { tone: 'danger' as const } : {})} />
           </div>
 
           <h2>Reservations, AI and orders</h2>
           <div className="kpis">
-            <Kpi label="Orders" value={m.business.orders_total} hint="Simulated data" />
+            <Kpi icon={Package} label="Orders" value={m.business.orders_total} hint="Simulated data" />
             <Kpi label="Shortages caught at order time" value={m.business.early_shortage_detected} />
             <Kpi label="At risk now" value={m.business.at_risk_count} />
             <Kpi label="OTIF" value={formatPercent(m.business.otif_rate)} hint={`Simulated, from ${m.business.delivered_orders} delivered`} />
             <Kpi label="Reservation conflicts" value={m.reservations.reservation_conflicts} />
             <Kpi label="Renewals / failures" value={<span style={{ fontSize: '1.1rem' }}>{m.reservations.renewals_total} / {m.reservations.renewal_failures_total}</span>} />
             <Kpi label="Reservations lost" value={m.reservations.lost_total} {...(m.reservations.lost_total ? { tone: 'danger' as const } : {})} />
-            <Kpi label="AI calls" value={m.ai.ai_calls_total} hint={`${m.ai.review_queue_pending} waiting for review`} />
+            <Kpi icon={Sparkles} label="AI calls" value={m.ai.ai_calls_total} hint={`${m.ai.review_queue_pending} waiting for review`} />
           </div>
 
           <Card title="Inventory by node">
