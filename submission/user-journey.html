@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>User Journey – OnSite – Team PYRAMID</title>
+<style>
+  @page { size: A4 landscape; margin: 9mm 10mm; }
+  :root { --ink:#16302b; --muted:#5b6b67; --line:#cfdcd8; --c:#1f6f5c; --c-bg:#e8f3ef; --sys:#4b55a8; --sys-bg:#eef0fb; --st:#b26b00; --st-bg:#fff4e5; --hq:#5f5f5f; --hq-bg:#f2f2f2; --warn:#b42318; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:"Segoe UI", Arial, sans-serif; color:var(--ink); font-size:8.4pt; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .page { width:277mm; height:191mm; page-break-after:always; display:flex; flex-direction:column; gap:2.2mm; overflow:hidden; }
+  .page:last-child { page-break-after:auto; }
+  .top { display:flex; justify-content:space-between; align-items:baseline; gap:6mm; }
+  h1 { font-size:15.5pt; margin:0; letter-spacing:-.2px; }
+  .tag { color:var(--muted); font-size:7.6pt; white-space:nowrap; }
+  .sub { color:var(--muted); margin:0; font-size:8.8pt; }
+  .sub b { color:var(--ink); }
+
+  /* Page 1: swimlane */
+  .lanes { display:grid; grid-template-columns: 27mm repeat(7, 1fr); grid-template-rows: auto 1fr 1.25fr 1fr auto auto; border:1px solid var(--line); border-radius:6px; overflow:hidden; flex:1; font-size:7.6pt; }
+  .lanes > div { border-right:1px solid var(--line); border-bottom:1px solid var(--line); padding:1.1mm; }
+  .lanes > div:nth-child(8n) { border-right:none; }
+  .lanes > div:nth-last-child(-n+8) { border-bottom:none; }
+  .head { background:#16302b; color:#fff; font-weight:600; font-size:8.3pt; }
+  .head small { display:block; font-weight:400; opacity:.75; font-size:7pt; }
+  .head .n { display:inline-grid; place-items:center; width:4.2mm; height:4.2mm; border-radius:50%; background:#fff; color:#16302b; font-size:7pt; margin-right:1mm; }
+  .lane { font-weight:700; font-size:8.3pt; display:flex; flex-direction:column; justify-content:center; line-height:1.2; }
+  .lane small { font-weight:400; font-size:6.8pt; opacity:.85; margin-top:.6mm; }
+  .lane.c { background:var(--c-bg); color:var(--c); } .lane.sys { background:var(--sys-bg); color:var(--sys); }
+  .lane.st { background:var(--st-bg); color:var(--st); } .lane.hq { background:var(--hq-bg); color:var(--hq); }
+  .lane.pain { color:var(--warn); } .lane.val { color:var(--c); }
+  .card { border-radius:4px; padding:1mm 1.4mm; line-height:1.27; }
+  .card.c { background:var(--c-bg); border-left:3px solid var(--c); }
+  .card.sys { background:var(--sys-bg); border-left:3px solid var(--sys); }
+  .card.st { background:var(--st-bg); border-left:3px solid var(--st); }
+  .card.hq { background:var(--hq-bg); border-left:3px solid var(--hq); }
+  .card.ai { background:#fff; border:1px dashed var(--sys); }
+  .ai-tag { display:inline-block; font-size:6.4pt; font-weight:700; color:var(--sys); border:1px solid var(--sys); border-radius:2px; padding:0 2px; margin-bottom:.6mm; }
+  .screen { color:var(--muted); font-size:6.8pt; display:block; margin-top:.6mm; }
+  .pain { color:var(--warn); font-size:7.3pt; line-height:1.25; }
+  .value { color:var(--c); font-size:7.3pt; line-height:1.25; font-weight:600; }
+  .kpi { display:inline-block; background:#16302b; color:#fff; border-radius:3px; padding:0 3px; font-size:7pt; margin:.6mm .6mm 0 0; }
+  .legend { display:flex; gap:5mm; color:var(--muted); font-size:7.2pt; align-items:center; }
+  .legend i { display:inline-block; width:3mm; height:3mm; border-radius:1px; margin-right:1.2mm; vertical-align:-.4mm; }
+
+  /* Page 2 */
+  .grid2 { display:grid; grid-template-columns: 1.08fr 1fr; gap:4mm; }
+  .box { border:1px solid var(--line); border-radius:6px; padding:2.6mm 3mm; }
+  .box h2 { font-size:10.2pt; margin:0 0 1.8mm; }
+  .box h3 { font-size:8.6pt; margin:1.6mm 0 1mm; }
+  .box h3:first-of-type { margin-top:0; }
+  .flow { display:flex; align-items:stretch; gap:1.2mm; }
+  .flow .card { flex:1; font-size:7.5pt; }
+  .arrow { align-self:center; color:var(--muted); font-size:10pt; }
+  table { border-collapse:collapse; width:100%; font-size:7.8pt; }
+  th, td { text-align:left; padding:1.15mm 1.6mm; border-bottom:1px solid var(--line); vertical-align:top; line-height:1.25; }
+  th { background:#f4f7f6; }
+  td:first-child { font-weight:600; white-space:nowrap; }
+  .foot { color:var(--muted); font-size:7.1pt; margin-top:1.6mm; line-height:1.3; }
+  .shots { display:grid; grid-template-columns: repeat(4, 1fr); gap:3mm; flex:1; min-height:0; }
+  .shot { border:1px solid var(--line); border-radius:6px; overflow:hidden; display:flex; flex-direction:column; min-height:0; }
+  .shot .img { flex:1; min-height:0; background:#f6f8fb; display:flex; align-items:flex-start; justify-content:center; border-bottom:1px solid var(--line); overflow:hidden; }
+  .shot img { width:100%; height:100%; object-fit:cover; object-position:top left; display:block; }
+  .shot .cap { padding:1.2mm 1.8mm; font-size:7.2pt; line-height:1.25; }
+  .shot .cap b { color:var(--ink); }
+  .step-ref { display:inline-grid; place-items:center; width:3.8mm; height:3.8mm; border-radius:50%; background:#16302b; color:#fff; font-size:6.4pt; font-weight:700; margin-right:1mm; vertical-align:.2mm; }
+  .section-title { font-size:10.2pt; font-weight:700; margin:0; }
+</style>
+</head>
+<body>
+
+<!-- ============================ PAGE 1 ============================ -->
+<section class="page">
+  <div class="top">
+    <h1>From order request to proof of delivery: one B2B journey</h1>
+    <span class="tag">Team PYRAMID · OnSite · Round 2 MVP</span>
+  </div>
+  <p class="sub"><b>Erik, site manager at Nordbygg AB</b>, needs cement and gypsum board for a project in Askim, Gothenburg. The MVP demonstrates this complete journey across the Round 1 pilot region: 10 stores and one hub in Sweden, using simulated data.</p>
+
+  <div class="lanes">
+    <!-- header row -->
+    <div class="head" style="background:#0f241f"></div>
+    <div class="head"><span class="n">1</span>Place order<small>Tue 09:00</small></div>
+    <div class="head"><span class="n">2</span>Validate &amp; route<small>seconds</small></div>
+    <div class="head"><span class="n">3</span>Approve<small>by node</small></div>
+    <div class="head"><span class="n">4</span>Pick &amp; dispatch<small>next vehicle slot</small></div>
+    <div class="head"><span class="n">5</span>Track<small>until delivery</small></div>
+    <div class="head"><span class="n">6</span>Confirm delivery<small>on site</small></div>
+    <div class="head"><span class="n">7</span>Measure<small>pilot gate</small></div>
+
+    <!-- customer -->
+    <div class="lane c">Site manager<small>customer</small></div>
+    <div><div class="card c">Pastes an order request (<i>"20 säckar Byggcement 25kg och 2 pall gips…"</i>), reviews the draft lines, corrects the gypsum quantity and places the order.<span class="screen">Catalog &amp; order → Paste an order message</span></div></div>
+    <div><div class="card c">Immediately sees whether the order can be fulfilled, how it is split across two nodes and why—or the exact shortfall.<span class="screen">Order page: split bar and "why this node"</span></div></div>
+    <div></div>
+    <div></div>
+    <div><div class="card c">Tracks live status and ETA. If the forecast moves beyond the requested time, Erik receives a <b>proactive warning</b> before he needs to call.<span class="screen">Order page, live updates, delay warning</span></div></div>
+    <div><div class="card c">Receives the goods and a confirmation showing the quantity delivered by each node and any shortfall.<span class="screen">Order confirmation (not a tax invoice)</span></div></div>
+    <div></div>
+
+    <!-- system -->
+    <div class="lane sys">OnSite<small>system</small></div>
+    <div><div class="card ai"><span class="ai-tag">AI · draft only</span><br>Turns the request into draft lines. Contact details are removed first; every line must quote the source text; units are never converted; uncertain lines stay unselected.</div></div>
+    <div><div class="card sys">Calculates usable stock as on hand − reserved − 10% buffer, but only when the feed is current and the node is reporting. Splits by earliest ETA: <b>54 + 46</b>; reserves at source.</div></div>
+    <div><div class="card sys">Creates one task per node. Fulfilment starts only after every node approves. Reservations are held for 30 minutes while awaiting approval and renewed once approved.</div></div>
+    <div><div class="card sys">Commits stock in the source system at dispatch and recalculates ETA using the vehicle slot, distance and unloading time.</div></div>
+    <div><div class="card sys">Monitors every open order. If a node stops reporting, its unapproved share moves to the next node and any ETA change is pushed live.</div></div>
+    <div><div class="card sys">Records the delivered quantity and whether the complete order arrived on time and in full (OTIF).</div></div>
+    <div><div class="card sys">Sends privacy-filtered events to Central through a durable outbox and retries until they are accepted.</div></div>
+
+    <!-- staff -->
+    <div class="lane st">Store B &amp;<br>hub staff</div>
+    <div></div>
+    <div></div>
+    <div><div class="card st">Store B approves 54 bags and the hub approves 46. Each team sees only its own allocation and pick list.<span class="screen">Staff → Tasks → task</span></div></div>
+    <div><div class="card st">Picks, stages and selects <b>Dispatch</b>. If a reservation has been lost, the task is blocked: nothing ships without reserved stock.</div></div>
+    <div></div>
+    <div><div class="card st">Confirms the delivered quantity—complete or short—with an optional note.<span class="screen">Staff → task → Confirm delivery</span></div></div>
+    <div></div>
+
+    <!-- head office -->
+    <div class="lane hq">Head office</div>
+    <div></div><div></div><div></div><div></div><div></div><div></div>
+    <div><div class="card hq">Pilot go/no-go card on Central, from Round 1:<br><span class="kpi">OTIF +3 pp</span><span class="kpi">calls −30%</span><span class="kpi">adoption &gt;90%</span></div></div>
+
+    <!-- pain -->
+    <div class="lane pain">Round 1 pain<br>it removes</div>
+    <div class="pain">Manual re-keying introduces errors at the first step</div>
+    <div class="pain">Stock shortfalls surface only at loading</div>
+    <div class="pain">Store, hub and haulier lack a shared order status</div>
+    <div class="pain">Paper-based picking with no confirmation</div>
+    <div class="pain">~3 internal calls and ~20 min to answer "Where is my truck?"</div>
+    <div class="pain">Missing items lead to delivery disputes</div>
+    <div class="pain">No shared evidence that the pilot delivered value</div>
+
+    <!-- value -->
+    <div class="lane val">Value</div>
+    <div class="value">No re-keying; the customer validates every line</div>
+    <div class="value">A credible promise before stock is reserved</div>
+    <div class="value">One shared order; clear ownership by node</div>
+    <div class="value">Stock is committed only when it ships</div>
+    <div class="value">Proactive warning instead of a status call</div>
+    <div class="value">A clear record of delivered quantities</div>
+    <div class="value">Pilot KPIs calculated from operational events</div>
+  </div>
+
+  <div class="legend">
+    <span><i style="background:var(--c-bg);border-left:3px solid var(--c)"></i>Customer action</span>
+    <span><i style="background:var(--sys-bg);border-left:3px solid var(--sys)"></i>Deterministic system logic</span>
+    <span><i style="background:#fff;border:1px dashed var(--sys)"></i>AI suggestion, checked by a person</span>
+    <span><i style="background:var(--st-bg);border-left:3px solid var(--st)"></i>Store / hub staff</span>
+    <span><i style="background:var(--hq-bg);border-left:3px solid var(--hq)"></i>Head office</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 2 ============================ -->
+<section class="page">
+  <div class="top">
+    <h1>Resilience built into the customer journey</h1>
+    <span class="tag">Team PYRAMID · OnSite · Round 2 MVP</span>
+  </div>
+  <p class="sub">The Round 1 delivery problem becomes most visible when something goes wrong. Each scenario below is implemented in the MVP and covered by automated tests.</p>
+
+  <div class="grid2">
+    <div class="box">
+      <h3>A. Not enough stock (scenario S2)</h3>
+      <div class="flow">
+        <div class="card c">Erik requests 100 bags</div><span class="arrow">→</span>
+        <div class="card sys">Only 90 are usable (54 + 36). Nothing is reserved and no false promise is made</div><span class="arrow">→</span>
+        <div class="card c">Sees a 10-bag shortfall and selects <b>Accept the 90 available</b></div><span class="arrow">→</span>
+        <div class="card sys">Rechecks stock, reserves 54 + 36 and retains the original request of 100 for traceability</div>
+      </div>
+      <h3>B. A store's server stops reporting (Round 1, Risk 3)</h3>
+      <div class="flow">
+        <div class="card st">Store B stops reporting to the source system</div><span class="arrow">→</span>
+        <div class="card sys">After 5 minutes of silence, Store B is isolated from routing</div><span class="arrow">→</span>
+        <div class="card sys">Its unapproved allocation moves to the hub and the ETA is recalculated</div><span class="arrow">→</span>
+        <div class="card c">Erik is notified only if the revised ETA is late</div>
+      </div>
+      <h3>C. The AI is uncertain, incorrect or unavailable</h3>
+      <div class="flow">
+        <div class="card ai">A proposed line cannot be supported by a verbatim quote</div><span class="arrow">→</span>
+        <div class="card sys">The line is removed and recorded</div><span class="arrow">→</span>
+        <div class="card ai">Low confidence, unknown product or mismatched unit (pallet vs sheet)</div><span class="arrow">→</span>
+        <div class="card c">The line stays unselected for Erik to decide. If the provider is unavailable, he orders from the catalog</div>
+      </div>
+      <h3>D. A node says no, or a system is down</h3>
+      <div class="flow">
+        <div class="card st">The hub rejects its task with a reason (forklift unavailable)</div><span class="arrow">→</span>
+        <div class="card sys">OnSite reallocates that share without returning it to the hub. If no node can fulfil it, all holds are released and Erik is informed</div><span class="arrow">→</span>
+        <div class="card sys">Source system unavailable: no promise is made. Central unavailable: orders continue and queued events catch up later</div>
+      </div>
+    </div>
+
+    <div class="box">
+      <h2>Before and after, for the same order</h2>
+      <table>
+        <tr><th>Moment</th><th>Before OnSite</th><th>With OnSite (MVP)</th></tr>
+        <tr><td>Placing the order</td><td>E-mail re-keyed by store staff</td><td>Text read into draft lines; the customer confirms each one</td></tr>
+        <tr><td>Is it in stock?</td><td>Staff check 11 locations one by one</td><td>One consolidated answer across all nodes, net of a 10% buffer</td></tr>
+        <tr><td>Not enough stock</td><td>Found at loading, next morning</td><td>Found while ordering; accept what is available or cancel</td></tr>
+        <tr><td>Two locations needed</td><td>Staff coordinate by phone</td><td>Rules-based split with the reason shown; each node approves its allocation</td></tr>
+        <tr><td>A store goes offline</td><td>Order silently stuck there</td><td>Isolated after 5 min; work moved to the next node</td></tr>
+        <tr><td>"Where is my delivery?"</td><td>~3 internal calls and ~20 min for an answer</td><td>Live ETA and a proactive warning before the customer needs to call</td></tr>
+        <tr><td>At delivery</td><td>Paper note and disputes</td><td>Quantity recorded by shipment; any short delivery is visible</td></tr>
+        <tr><td>Did the pilot work?</td><td>No shared evidence</td><td>Central reports OTIF, proactive warnings and adoption from privacy-filtered events</td></tr>
+      </table>
+      <p class="foot">AI supports order intake only; deterministic rules control stock, routing, reservations and ETAs. All MVP figures are simulated. The "before" column comes from the Round 1 analysis (Thunberg &amp; Persson 2014 and stated team assumptions), not measurements from this MVP.</p>
+    </div>
+  </div>
+
+  <p class="section-title">The same journey in the MVP</p>
+  <div class="shots">
+    <div class="shot"><div class="img"><img src="img/ai-reader.png" alt="Paste an order message: AI draft lines"></div>
+      <div class="cap"><span class="step-ref">1</span><b>Paste an order request.</b> Contact details are removed; cement is selected; "2 pall" is flagged as a unit mismatch for Erik to resolve.</div></div>
+    <div class="shot"><div class="img"><img src="img/order-split.png" alt="Order page with split 54 + 46"></div>
+      <div class="cap"><span class="step-ref">2</span><b>Review the fulfilment plan.</b> The 54 + 46 split, rationale, reservation deadline and history are visible.</div></div>
+    <div class="shot"><div class="img"><img src="img/staff-task.png" alt="Hub staff task with pick list"></div>
+      <div class="cap"><span class="step-ref">3</span><b>Approve by node.</b> The hub sees only its 46 bags; Store B has approved its share and the hub is next.</div></div>
+    <div class="shot"><div class="img"><img src="img/central-kpis.png" alt="Central pilot KPIs"></div>
+      <div class="cap"><span class="step-ref">7</span><b>Measure the pilot.</b> Central calculates the Round 1 go/no-go KPIs from filtered events (simulated data).</div></div>
+  </div>
+</section>
+</body>
+</html>
