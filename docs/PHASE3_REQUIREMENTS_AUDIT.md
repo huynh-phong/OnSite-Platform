@@ -2,7 +2,7 @@
 
 **Team:** PYRAMID. **Audited against:** architecture report v3.0 (`docs/ONSITE_BAO_CAO_KIEN_TRUC_VA_KE_HOACH_MVP.md`), capabilities C1–C19 and test cases TC01–TC22.
 
-**How to read the status.** `IMPLEMENTED_AND_VERIFIED` means working evidence on **native Windows with PostgreSQL 16**, on Node.js 24 and 20. None of it was run in Linux containers. Docker verification is tracked in section 3. Test counts are in `docs/PHASE3_FINAL_MVP_REPORT.md`, section F.
+**How to read the status.** `IMPLEMENTED_AND_VERIFIED` means working evidence on **native Windows with PostgreSQL 16**, on Node.js 24 and 20. The same suites also passed on Linux in CI. Docker verification is tracked in section 3. Test counts are in `docs/PHASE3_FINAL_MVP_REPORT.md`, section F.
 
 **Evidence abbreviations.** *Browser* = Playwright in Chromium (`apps/e2e/tests`). *Integration* = Vitest against real PostgreSQL. *Smoke* = `scripts/e2e-smoke.mjs` against running processes. *Measure* = `apps/e2e/stack/measure.mjs`, which also stops real processes.
 
@@ -67,8 +67,8 @@ Paths for Local SE are under `apps/onsite-local-se/src/modules` unless shown oth
 |---|---|---|---|
 | Three independent databases | Three servers with separate credentials; TC20 | IMPLEMENTED_AND_VERIFIED natively | None |
 | Native Windows startup | `scripts/run-native.sh` used for Smoke | IMPLEMENTED_AND_VERIFIED | None |
-| Docker Compose, Linux containers | `compose.yaml`, four Dockerfiles, workflow written. **Never run** | IMPLEMENTED_NOT_VERIFIED: `PENDING_EXTERNAL_EXECUTION` | P1 only if Docker is needed for the demo |
-| CI workflow | YAML parses, lockfiles pass `npm ci --dry-run`, `init-env.sh` tested in a clean folder. **Never run** | IMPLEMENTED_NOT_VERIFIED: `PENDING_EXTERNAL_EXECUTION` | P2 |
+| Docker Compose, Linux containers | [CI run 42003368160](https://github.com/huynh-phong/OnSite-Platform/actions/runs/42003368160): images, healthchecks, separate databases, reset, smoke test | IMPLEMENTED_AND_VERIFIED on Linux in CI. Browser tests did not target the containers | P3 |
+| CI workflow | Passed its first run on commit `93b8d95` | IMPLEMENTED_AND_VERIFIED | None |
 | Live Gemini connectivity | Final check: 1 of 3 calls succeeded, 2 got HTTP 503 from Google. See final report, section I | Works, intermittently | P2 for the live demo: check before recording |
 | Gemini accuracy | Not run: needs authorization | Not measured | P3 |
 | Anthropic provider | Tested only against a stand-in | IMPLEMENTED_NOT_VERIFIED | P3 |
@@ -85,5 +85,5 @@ No P0 was found. Details and tests are in the final report, section D.
 | 3 | P2 | `run-native.sh reset` logged errors when dropping tables under running services | Fixed |
 | 4 | P2 | Pages scrolled sideways on phone widths | Fixed |
 | 5 | P2 | Customer's lateness warning showed a raw UTC timestamp | Fixed |
-| 6 | P2 | `compose.yaml`: central-db healthcheck variables were expanded on the host instead of in the container | Fixed, not run |
-| 7 | P2 | `reset-demo.sh`: in Docker mode, it dropped tables under running workers, as in defect 3 | Fixed, not run |
+| 6 | P2 | `compose.yaml`: central-db healthcheck variables were expanded on the host instead of in the container | Fixed, passed in CI |
+| 7 | P2 | `reset-demo.sh`: in Docker mode, it dropped tables under running workers, as in defect 3 | Fixed, passed in CI |

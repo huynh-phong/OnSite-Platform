@@ -31,7 +31,7 @@ scripts/init-env.sh
 
 ## Run with Docker
 
-Requires Docker with Compose, and Bash (Git Bash on Windows). **This path has not been run yet.** `.github/workflows/onsite-mvp-validation.yml` is ready to verify it on a Docker machine: see the report.
+Requires Docker with Compose, and Bash (Git Bash on Windows). It has passed on Linux in CI (`.github/workflows/onsite-mvp-validation.yml`), and has not been tried on Windows: see the report.
 
 ```bash
 docker compose up --build -d

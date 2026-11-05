@@ -1,6 +1,6 @@
 # OnSite MVP: Final Demo Runbook
 
-**Team:** PYRAMID. **Tested path:** Windows without Docker, using `scripts/run-native.sh`. Docker Compose has not been run, so do not use it for a live demo unless it has first passed on a Docker machine.
+**Team:** PYRAMID. **Tested path:** Windows without Docker, using `scripts/run-native.sh`. Docker Compose has passed on Linux in CI, but not on Windows and not with browser tests against the containers. Use the native path for the demo.
 
 ## 1. Prerequisites
 
@@ -138,7 +138,7 @@ Check logs in `.native/` (git-ignored). They contain no secrets, but do not show
 - **Simulated data:** stores, customers, prices, stock, distances and travel times. OTIF is labelled simulated. Do not quote it as a business result.
 - **Gemini accuracy:** not measured. Do not state a percentage. The 98% from Phase 1 came from the mock.
 - **Performance figures:** one laptop with small data, not capacity. Do not imply production scale.
-- **Docker and Linux:** not run unless the CI workflow has passed. See the final report.
+- **Docker:** passed in CI on Linux only. Do not claim it was tested on Windows. See the final report.
 - **Denmark and Norway:** design only.
 - **Security:** demo secrets from environment variables, not a key vault. Logins and demo reset are demo-grade. Encryption covers selected fields with a key from the environment.
 - **Not built:** payment, tax invoices, real ERP, SMS or GPS, and public deployment.
@@ -176,4 +176,4 @@ Run the outage and recovery.
 
 **6:15–7:00 Part 8: engineering proof and limits.**
 Show the test summary from the final report.
-"This is backed by automated tests and by real-browser tests of these same journeys, plus process kills and reset checks. Let me be plain about the limits. The data is simulated. The figures come from one laptop. We have not measured AI accuracy, and the Docker path is prepared but needs a Docker machine to prove it. This is an MVP that shows the flow works. It is not a production system."
+"This is backed by automated tests and by real-browser tests of these same journeys, plus process kills and reset checks. Let me be plain about the limits. The data is simulated. The figures come from one laptop. We have not measured AI accuracy. The Docker stack passed on Linux in CI, while this demo runs natively. This is an MVP that shows the flow works. It is not a production system."

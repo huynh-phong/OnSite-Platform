@@ -2,17 +2,17 @@
 
 **Team:** PYRAMID. **Date:** 5 November 2026. **Code state:** uncommitted working tree on top of `96b4b01`.
 
-**Environment for all results below:** Windows 11, Intel i5-12500H, 8 GB RAM, Node.js 20.20.2 unless stated, PostgreSQL 16 running natively, Chromium through Playwright. Nothing here ran in a container or on Linux.
+**Environment for results below:** unless stated, Windows 11, Intel i5-12500H, 8 GB RAM, Node.js 20.20.2, PostgreSQL 16 running natively, Chromium through Playwright. Linux and Docker results come from one GitHub Actions run, [42003368160](https://github.com/huynh-phong/OnSite-Platform/actions/runs/42003368160), on commit `93b8d95`.
 
 ## A. Executive Summary
 
-**Decision: READY WITH LIMITATIONS,** for a demo on a native Windows machine.
+**Decision: READY WITH LIMITATIONS,** for a demo on a native Windows machine. The Docker Compose stack has also passed its CI run on Linux.
 
 The four applications, three databases and all the demo journeys work on this machine. They were exercised in a real browser, and with real processes stopped and restarted. No P0 defect was found. One P1 and several smaller defects were found and fixed.
 
 Three limits matter most:
 
-1. **Docker and Linux have never run.** The workflow is written, but this machine has no Docker. Status: `PENDING_EXTERNAL_EXECUTION`.
+1. **The browser tests have not run against the containers.** On Linux, Playwright ran against Node processes, with only the databases in containers. The Compose stack itself passed page checks and the API smoke test.
 2. **Live Gemini is intermittent.** In the final check, 1 of 3 calls succeeded and 2 failed with HTTP 503 from Google. The system handled this as designed. Its accuracy has not been measured.
 3. **Performance figures describe one laptop** with small simulated data. They say nothing about production capacity.
 
@@ -67,8 +67,8 @@ Browser ──> OnSite Web :3000 ──/api──> OnSite Local SE :4000 ──>
 | 3 | P2 | `run-native.sh reset` logged errors with services running | Tables were dropped under running workers | `run-native.sh` | Stops the services, resets, restarts them | Used for Smoke: 0 error-level log lines |
 | 4 | P2 | Pages scrolled sideways on phone widths | The grid column `1fr` could not shrink below its table's width | `styles.css` | Columns can shrink, and tables scroll inside their card | `z-screens.spec.ts` (8 screens at 1280 and 390 px) |
 | 5 | P2 | Customer's lateness warning showed a raw UTC timestamp | Reason text used `toISOString()` | `eta.service.ts` | Shows Swedish time | Assertions added in `fulfilment.test.ts` |
-| 6 | P2 | central-db healthcheck variables would expand on the host, not in the container | Single `$` in `compose.yaml` | `compose.yaml` | Uses `$$`, like the other two | **Not run:** needs Docker |
-| 7 | P2 | Docker reset dropped tables under running workers | Same as #3 | `reset-demo.sh` | Stops services, resets using one-off containers, restarts | **Not run:** needs Docker |
+| 6 | P2 | central-db healthcheck variables would expand on the host, not in the container | Single `$` in `compose.yaml` | `compose.yaml` | Uses `$$`, like the other two | CI: healthchecks passed |
+| 7 | P2 | Docker reset dropped tables under running workers | Same as #3 | `reset-demo.sh` | Stops services, resets using one-off containers, restarts | CI: reset step passed |
 
 **Also added:** `ONSITE_LLM_PROVIDER=mock` for `run-native.sh`, to run without live AI whatever `.env` says.
 
@@ -112,13 +112,15 @@ Browser ──> OnSite Web :3000 ──/api──> OnSite Local SE :4000 ──>
 | Smoke, real processes | 45 checks | 0 | 0 | Node 20, mock AI | |
 | Measurement checks | 15 checks | 0 | 0 | Node 20, mock AI | Before the warning-text change only |
 | TypeScript | 5 apps | 0 | | Node 20 | |
-| **Docker CI** | **Not run** | | | No Docker here | `PENDING_EXTERNAL_EXECUTION` |
+| **CI: typecheck, tests, audit, Browser E2E** | **All steps passed** | 0 | | ubuntu-latest, Node 20 | Step status only. Per-test counts were not read, because logs need a GitHub login |
+| **CI: Docker Compose stack** | **All steps passed** | 0 | | ubuntu-latest, Linux containers, mock AI | Includes the smoke test, which exits non-zero on any failed check |
 
 **Not run, and why:**
 
 | Item | Reason |
 |---|---|
-| Docker Compose, Linux containers, CI workflow | This machine has no Docker. Publishing the workflow needs authorization |
+| Browser E2E against the Compose containers | The workflow runs it against Node processes |
+| Docker Desktop on Windows | CI covers Linux only, and this machine has no Docker |
 | Gemini 50-example evaluation | Paid calls, needs explicit authorization |
 | Anthropic provider, live | Tested only against a stand-in |
 
@@ -178,9 +180,10 @@ No penetration test was performed.
 | Native Windows | **Verified** | `run-native.sh` up, reset, down. Smoke 45/45 |
 | Node 20 | **Verified** | Section F |
 | Node 24 | Verified, apart from the last small Local changes | Section F |
-| Docker Compose | **`PENDING_EXTERNAL_EXECUTION`, never run** | Files reviewed, 2 defects fixed by reading only |
-| Linux containers | **`PENDING_EXTERNAL_EXECUTION`, never run** | Lockfiles contain Linux packages. `init-env.sh` tested in a clean folder, on Windows |
-| CI workflow | **`PENDING_EXTERNAL_EXECUTION`, never run** | YAML parses, `npm ci --dry-run` passes for all 5 apps. Not published |
+| Docker Compose | **Verified in CI** | Images built, healthchecks passed, 3 databases confirmed separate, reset, smoke test passed, in 2 min 10 s |
+| Linux containers | **Verified in CI** | Same run, ubuntu-latest |
+| Linux with Node 20, apps not in containers | **Verified in CI** | Typecheck, tests, audit, Browser E2E, in 7 min 42 s |
+| CI workflow | **Passed its first run** | [Run 42003368160](https://github.com/huynh-phong/OnSite-Platform/actions/runs/42003368160), commit `93b8d95` |
 | Gemini connectivity | **Works, intermittently** | See below |
 | Gemini accuracy | **Not measured** | 50-example evaluation needs authorization |
 
@@ -225,9 +228,9 @@ Request count: **3 calls. Up to 5 HTTP requests,** because the client retries on
 2. Run `npm run llm:smoke` shortly before recording. If Google keeps returning 503, use `ONSITE_LLM_PROVIDER=mock` and say so on camera.
 3. Check that no secrets are visible in the recording.
 
-**NO-GO for claiming** Docker or Linux works, any Gemini accuracy figure, production readiness, or that the performance figures describe capacity.
+**NO-GO for claiming** Docker works on Windows, browser tests passed against the containers, any Gemini accuracy figure, production readiness, or that the performance figures describe capacity.
 
-**To close the Docker gap:** run `docker compose up --build -d`, `scripts/reset-demo.sh S1` and `node scripts/e2e-smoke.mjs` on a machine with Docker, or authorize publishing the workflow to GitHub. Expect that first run to possibly uncover problems, since it has never been executed.
+Keep the demo on the native path, which these results cover most fully. The Compose stack is a verified alternative on Linux, and this machine cannot run it.
 
 ## Acceptance Checklist
 
@@ -241,7 +244,7 @@ Request count: **3 calls. Up to 5 HTTP requests,** because the client retries on
 | Browser workflows verified, automated tests pass | Yes, automated |
 | No critical security findings | None in shipped code. 2 critical in test tooling only, see H |
 | Reset reproducible, native startup functional | Yes |
-| Docker status accurate, limitations documented, runbook and report complete | Yes |
+| Docker verified in CI on Linux, status accurate, limitations documented, runbook and report complete | Yes |
 
 ## Submission Support
 
