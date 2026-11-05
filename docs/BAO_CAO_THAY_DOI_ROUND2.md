@@ -8,7 +8,7 @@ Tài liệu này giúp cả nhóm nắm nhanh những gì đã thay đổi trong
 
 ## 1. Tóm tắt trong một đoạn
 
-MVP ở Phase 3 đã chạy ổn, nhưng còn **4 chỗ chưa làm hoặc mới làm một nửa** so với những gì slide Round 1 đã hứa. Giám khảo Round 2 chấm "technical reasoning aligned with Round 1", nên đây là những chỗ dễ bị hỏi nhất. Đợt này nhóm đã bổ sung đủ 4 chỗ đó, sửa thêm 3 lỗi nhỏ, và viết thêm 43 test. Toàn bộ 492 test unit/integration và 29/29 test E2E trình duyệt đều pass. Kiến trúc giữ nguyên: vẫn 4 service và 3 database, không thêm service nào.
+MVP ở Phase 3 đã chạy ổn, nhưng còn **4 chỗ chưa làm hoặc mới làm một nửa** so với những gì slide Round 1 đã hứa. Giám khảo Round 2 chấm "technical reasoning aligned with Round 1", nên đây là những chỗ dễ bị hỏi nhất. Đợt này nhóm đã bổ sung đủ 4 chỗ đó, sửa thêm 3 lỗi nhỏ, và viết thêm 43 test. Toàn bộ 492 test unit/integration và 29/29 test E2E trình duyệt đều pass. Giao diện web cũng được làm mới theo phong cách Stripe/Linear (mục 4). Kiến trúc giữ nguyên: vẫn 4 service và 3 database, không thêm service nào.
 
 ## 2. Bốn cải tiến chính
 
@@ -77,7 +77,29 @@ Provider mock (khi `LLM_PROVIDER=mock`) đọc bằng quy tắc từ khoá kèm 
 | Bỏ option `requestIdLogLabel` đã lỗi thời của Fastify | Lúc khởi động không còn cảnh báo `FSTDEP024` |
 | Nhãn "Eta changed" đổi thành "ETA changed" | Chỉ là chữ hiển thị |
 
-## 4. Những gì đổi trong code
+## 4. Giao diện mới
+
+Giao diện cũ gọn và dễ đọc, nhưng trông "mặc định": thanh menu màu đặc, các thẻ giống hệt nhau, chưa có biểu tượng. Đợt này làm lại phần trình bày theo phong cách **Stripe / Linear** (dashboard B2B nền sáng). Chức năng, nội dung chữ và luồng màn hình giữ nguyên.
+
+- **Web chính (Customer, Staff, Admin):**
+  - Menu dọc bên trái có biểu tượng và logo OnSite mới.
+  - Góc dưới menu hiện trạng thái Live, người dùng và nút Log out.
+  - Mỗi vai trò có một màu nhấn riêng: Customer xanh dương, Staff xanh ngọc, Admin tím.
+- **Trang đăng nhập:** chia đôi màn hình. Bên trái là 3 ý chính của sản phẩm, bên phải là form.
+- **Thẻ KPI:** nhãn ở trên, số to bên dưới, có biểu tượng. Thẻ có cảnh báo hay lỗi thì đổi sang màu vàng hoặc đỏ.
+- **Bảng, nhãn trạng thái, thông báo:** làm lại cho thoáng hơn. Nhãn trạng thái có chấm màu, thông báo có biểu tượng theo mức độ. Trang đơn hàng có các bước kèm dấu ✓ và lịch sử dạng timeline.
+- **Central:** dùng chung hệ thiết kế, thanh trên cùng màu trắng có logo.
+- **Legacy:** **cố ý giữ vẻ hệ thống cũ** (font Tahoma, góc vuông, thanh nâu, bảng sọc) để khi demo thấy rõ khác biệt trước và sau OnSite.
+- **Điện thoại:** menu gập thành thanh trên cùng, cuộn ngang được. Test E2E kiểm tra ở màn rộng 390px không trang nào bị tràn ngang.
+
+Ghi chú kỹ thuật:
+
+- Font Inter và bộ biểu tượng Lucide được đóng gói thẳng vào app, nên demo không cần mạng. Kiểm tra bảo mật cho phần dependency chạy trên production báo 0 lỗ hổng.
+- Đã tắt tính năng tự thay ký tự của Inter. Nếu để mặc định, "900x2400" sẽ hiện thành "900×2400", tức màn hình không còn đúng chữ khách đã gõ.
+- Tên class giữ nguyên, nên không phải sửa test nào. Code nằm trong `apps/web/src/shared/styles.css`, `shared/ui.tsx` và `web/Layout.tsx`.
+- Kết quả: test web 80/80, E2E 29/29, CI trên `main` pass ở commit `87fc01e` (lần chạy [42052085351](https://github.com/huynh-phong/OnSite-Platform/actions/runs/42052085351)).
+
+## 5. Những gì đổi trong code
 
 ### API mới (Local SE)
 
@@ -98,7 +120,7 @@ Provider mock (khi `LLM_PROVIDER=mock`) đọc bằng quy tắc từ khoá kèm 
 
 ### Migration mới
 
-Cần reset database để áp dụng (xem mục 6).
+Cần reset database để áp dụng (xem mục 7).
 
 | App | File | Nội dung |
 |---|---|---|
@@ -136,7 +158,7 @@ Cần reset database để áp dụng (xem mục 6).
 
 Tổng cộng 42 file sửa và 15 file mới, tính cả hai tài liệu này.
 
-## 5. Kết quả kiểm thử
+## 6. Kết quả kiểm thử
 
 | Loại | Trước | Sau | Ghi chú |
 |---|---|---|---|
@@ -163,7 +185,9 @@ Tổng cộng 42 file sửa và 15 file mới, tính cả hai tài liệu này.
 
 Như lần CI trước, E2E chạy trên các process Node chứ không nhắm vào container. Docker trên Windows vẫn chưa được thử.
 
-## 6. Cập nhật máy của bạn sau khi pull
+Sau khi merge giao diện mới (mục 4), CI lại pass ở commit `87fc01e`, lần chạy [42052085351](https://github.com/huynh-phong/OnSite-Platform/actions/runs/42052085351).
+
+## 7. Cập nhật máy của bạn sau khi pull
 
 ```bash
 scripts/init-env.sh                          # thêm NODE_HEARTBEAT_TIMEOUT_SECONDS vào .env, không đụng giá trị cũ
@@ -174,7 +198,7 @@ scripts/run-native.sh reset S1               # bắt buộc: áp dụng migratio
 
 Với Docker: `docker compose up --build -d` rồi chạy `scripts/reset-demo.sh S1`. Phần này đã pass trên Linux trong CI với code Round 2, nhưng **chưa được thử trên Windows**.
 
-## 7. Các cảnh demo mới
+## 8. Các cảnh demo mới
 
 Đã thêm vào `docs/FINAL_DEMO_RUNBOOK.md`, mục 4.
 
@@ -185,17 +209,18 @@ Với Docker: `docker compose up --build -d` rồi chạy `scripts/reset-demo.sh
 - **I, Circuit breaker:** đặt 30 bao (đơn đi Store B), bấm **Drop link** cho Store B. Khoảng 70 giây sau, đơn chuyển sang hub. Bấm **Restore** thì Store B quay lại.
 - **F (bổ sung):** trên Central, chỉ vào thẻ **Pilot go/no-go KPIs (Round 1)**.
 
-## 8. Việc còn phải làm trước 9/11
+## 9. Việc còn phải làm trước 9/11
 
 | Việc | Ai | Ghi chú |
 |---|---|---|
 | Thử bộ đọc đơn với Gemini thật (nếu định demo bằng AI thật) | AI | Hiện mới chạy với mock. Không được công bố độ chính xác |
 | Duyệt và chỉnh 2 bản nháp PDF | Consultant | `materials/drafts/System Context Diagram (draft).pdf` và `User Journey (draft).pdf`. **Hai file này chỉ có trên máy đã làm, không nằm trong repo.** Bản HTML nguồn nằm cùng thư mục |
 | Viết AI Journal theo template | Cả nhóm | Có thể ghi đợt này như một mục: dùng Claude Code để tìm khoảng trống so với Round 1 và cài đặt 4 cải tiến. Nhóm kiểm chứng bằng 43 test mới, smoke test, 29 test E2E trình duyệt, và review code |
-| Tập runbook một lần có bấm giờ, rồi quay video ≤ 7 phút | Cả nhóm | Thêm đoạn "What changed since Round 1": 4 cải tiến trên, cộng lý do mọi gợi ý AI đều chờ người duyệt |
+| Tập runbook một lần có bấm giờ, rồi quay video ≤ 7 phút | Cả nhóm | Thêm đoạn "What changed since Round 1": 4 cải tiến trên, cộng lý do mọi gợi ý AI đều chờ người duyệt. Quay bằng giao diện mới |
+| Chụp lại ảnh màn hình trong slide, PDF và tài liệu nộp | Consultant | Ảnh chụp trước commit `87fc01e` là giao diện cũ. Ảnh mới có sẵn trong `apps/e2e/test-results/screens/` sau khi chạy E2E |
 | Kiểm tra không lộ secret trong video và PDF | Cả nhóm | Không quay `.env` hay terminal in mật khẩu |
 
-## 9. Những điều vẫn không được tuyên bố
+## 10. Những điều vẫn không được tuyên bố
 
 Các giới hạn sau từ `PHASE3_FINAL_MVP_REPORT.md` mục J vẫn đúng:
 - Dữ liệu là mô phỏng.
