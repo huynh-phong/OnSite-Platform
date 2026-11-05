@@ -30,6 +30,17 @@ const input = (quantity: number, overrides: Partial<PlanInput> = {}): PlanInput 
 });
 
 describe('planAllocation', () => {
+  it('S1 gives the same split at any time of day, on any day, across a daylight-saving change', () => {
+    const start = Date.UTC(2026, 9, 20);
+    for (let at = start; at < start + 14 * 86_400_000; at += 15 * 60_000) {
+      const plan = planAllocation(input(100, { now: new Date(at), inventory: stock({ 'SE-STORE-B': 54, 'SE-HUB-01': 54 }) }));
+      expect(plan.allocations.map((a) => [a.node_id, a.quantity]), new Date(at).toISOString()).toEqual([
+        ['SE-STORE-B', 54],
+        ['SE-HUB-01', 46],
+      ]);
+    }
+  });
+
   it('S1: 100 bags split 54 at Store B and 46 at the hub', () => {
     const plan = planAllocation(input(100, { inventory: stock({ 'SE-STORE-B': 54, 'SE-HUB-01': 54 }) }));
     expect(plan.status).toBe('OK');

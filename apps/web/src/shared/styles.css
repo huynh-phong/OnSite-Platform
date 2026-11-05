@@ -72,13 +72,22 @@ code { font-family: Consolas, 'Courier New', monospace; font-size: 0.9em; }
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .spread { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .grid { display: grid; gap: 16px; }
-.grid-2 { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+.grid > * { min-width: 0; }
+.grid-2 { grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); }
 .grid-side { grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr); align-items: start; }
 .kpis { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
-@media (max-width: 900px) { .grid-side { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .grid-side { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 600px) {
+  .main { padding: 14px; }
+  .topbar { padding: 8px 14px; gap: 8px 14px; }
+  .nav { flex-basis: 100%; order: 3; }
+  .bar-row { grid-template-columns: 110px 1fr 36px; }
+  .timeline li { flex-direction: column; gap: 0; }
+  .timeline time { min-width: 0; }
+}
 
 /* Parts */
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+.card { min-width: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
 .card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 16px; border-bottom: 1px solid var(--border); }
 .card-body { padding: 14px 16px; }
 .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; box-shadow: var(--shadow); }

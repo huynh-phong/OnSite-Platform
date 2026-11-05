@@ -15,7 +15,10 @@ OnSite Central for monitoring. AI has one job: suggesting normalizations of sour
 Central uses 6001 rather than the 6000 in the architecture report: browsers and `fetch` refuse to connect to 6000.
 
 - Source of truth: [docs/ONSITE_BAO_CAO_KIEN_TRUC_VA_KE_HOACH_MVP.md](docs/ONSITE_BAO_CAO_KIEN_TRUC_VA_KE_HOACH_MVP.md)
-- Status, test results and limitations: [docs/PHASE2_COMPLETION_REPORT.md](docs/PHASE2_COMPLETION_REPORT.md) and [docs/PHASE1_COMPLETION_REPORT.md](docs/PHASE1_COMPLETION_REPORT.md)
+- Final status, test results and limitations: [docs/PHASE3_FINAL_MVP_REPORT.md](docs/PHASE3_FINAL_MVP_REPORT.md)
+- How to run and present the demo: [docs/FINAL_DEMO_RUNBOOK.md](docs/FINAL_DEMO_RUNBOOK.md)
+- Requirements audit: [docs/PHASE3_REQUIREMENTS_AUDIT.md](docs/PHASE3_REQUIREMENTS_AUDIT.md)
+- Earlier reports: [Phase 2](docs/PHASE2_COMPLETION_REPORT.md), [Phase 1](docs/PHASE1_COMPLETION_REPORT.md)
 
 ## Configure
 
@@ -28,7 +31,7 @@ scripts/init-env.sh
 
 ## Run with Docker
 
-Requires Docker with Compose, and Bash (Git Bash on Windows). **This path has not been run yet: see the report.**
+Requires Docker with Compose, and Bash (Git Bash on Windows). **This path has not been run yet.** `.github/workflows/onsite-mvp-validation.yml` is ready to verify it on a Docker machine: see the report.
 
 ```bash
 docker compose up --build -d
@@ -58,8 +61,12 @@ scripts/run-native.sh reset S1
 scripts/run-native.sh down
 ```
 
-`up` builds and starts all four services. `reset` also works while they run; expect a few harmless errors in the log while
-the databases are being recreated. Logs go to `.native/`.
+`up` builds and starts all four services. `reset` stops any running services, recreates the databases, and starts them
+again. Logs go to `.native/`. To run without the live AI provider, whatever `.env` says:
+
+```bash
+ONSITE_LLM_PROVIDER=mock scripts/run-native.sh up
+```
 
 ## Logins
 
@@ -84,7 +91,7 @@ Passwords are in your `.env`.
 
 Switch with **Operations → Demo reset** as `admin.se`, which resets all three systems together (needs
 `DEMO_RESET_ENABLED=true`), or with `scripts/run-native.sh reset S2`. Step-by-step demo instructions are in the
-[Phase 2 report](docs/PHASE2_COMPLETION_REPORT.md#h-demo-instructions).
+[demo runbook](docs/FINAL_DEMO_RUNBOOK.md).
 
 ## AI provider
 
@@ -115,6 +122,19 @@ Black-box check of a running, freshly reset stack, with real processes and real 
 
 ```bash
 SMOKE_LOG_FILES=.native/local-se.log,.native/simulator.log,.native/central.log,.native/web.log node scripts/e2e-smoke.mjs
+```
+
+Browser tests in real Chromium, on spare ports with disposable `*_e2e` databases and the mock AI provider. Build the apps
+first. They leave the demo data alone:
+
+```bash
+cd apps/e2e && npm ci && npx playwright install chromium && npm test
+```
+
+Measure latency, sync, backlog recovery and stability on this machine, including stopping real processes:
+
+```bash
+cd apps/e2e && npm run measure
 ```
 
 Measure the AI provider over 50 labelled examples. This makes 50 calls to the configured provider, which may cost money:

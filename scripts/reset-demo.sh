@@ -16,9 +16,13 @@ if [ "${ONSITE_NATIVE:-0}" = "1" ]; then
   (cd apps/onsite-local-se && node dist/cli/reset.js)
   (cd apps/onsite-central && node dist/cli/reset.js)
 else
-  docker compose exec -T sweden-simulator node dist/cli/reset.js "$scenario"
-  docker compose exec -T onsite-local-se node dist/cli/reset.js
-  docker compose exec -T onsite-central node dist/cli/reset.js
+  # The services stop first: dropping tables under running workers can deadlock.
+  docker compose stop onsite-web onsite-local-se onsite-central sweden-simulator
+  docker compose up -d --wait sim-db se-db central-db
+  docker compose run --rm --no-deps sweden-simulator node dist/cli/reset.js "$scenario"
+  docker compose run --rm --no-deps onsite-local-se node dist/cli/reset.js
+  docker compose run --rm --no-deps onsite-central node dist/cli/reset.js
+  docker compose up -d --wait
 fi
 
 echo "Demo reset complete with inventory scenario $scenario."

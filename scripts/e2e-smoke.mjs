@@ -230,6 +230,24 @@ const caughtUp = await centralGet('/dashboard');
 check('Central caught up on the new order', caughtUp.kpis.total_orders === before2 + 1, { before2, kpis: caughtUp.kpis });
 check('nothing was counted twice', caughtUp.countries[0].events_received >= receivedBefore + stuck && caughtUp.countries[0].duplicate_events_ignored === 0, caughtUp.countries[0]);
 
+console.log('S2 and repeatable reset');
+const reset = (scenario) => local('POST', '/admin/demo/reset', { token: admin, body: { scenario, confirm: 'RESET' } });
+const resetS2 = await reset('S2');
+check('the demo reset works', resetS2.status === 200 && resetS2.body.central === 'reset', resetS2.body);
+await until('the catalog after the reset', async () => (await local('GET', '/products', { token: buyer })).body.length === 20);
+const shortage = await local('POST', '/orders', { token: buyer, headers: { 'idempotency-key': randomUUID() }, body: orderBody });
+check('S2: 100 bags goes to NEEDS_REVIEW with 90 fulfillable', shortage.body.status === 'NEEDS_REVIEW' && shortage.body.fulfillable_qty === 90 && shortage.body.order_id === 'SE-ORD-000001', shortage.body);
+check('S2: nothing is allocated', shortage.body.allocations?.length === 0);
+const resetS1 = await reset('S1');
+await until('the catalog after the second reset', async () => (await local('GET', '/products', { token: buyer })).body.length === 20);
+const again = await local('POST', '/orders', { token: buyer, headers: { 'idempotency-key': randomUUID() }, body: orderBody });
+check(
+  'S1 after S2: the same 54 + 46 split, and numbering starts over',
+  resetS1.status === 200 && again.body.order_id === 'SE-ORD-000001' && JSON.stringify(again.body.allocations?.map((a) => a.quantity)) === '[54,46]',
+  again.body,
+);
+await local('POST', `/orders/${again.body.order_id}/cancel`, { token: buyer });
+
 const logFiles = (process.env.SMOKE_LOG_FILES ?? '').split(',').filter(Boolean);
 if (logFiles.length) {
   console.log('Secrets in logs');

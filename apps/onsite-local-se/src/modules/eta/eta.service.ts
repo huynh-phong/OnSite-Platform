@@ -36,6 +36,10 @@ async function listEtaTasks(client: pg.PoolClient, orderId: string): Promise<Eta
   return rows;
 }
 
+function swedishTime(date: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat('en-GB', { timeZone, day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).format(date);
+}
+
 export class EtaService {
   constructor(
     private readonly pool: Db,
@@ -83,7 +87,7 @@ export class EtaService {
     );
     const reason =
       atRisk && latest
-        ? `The shipment from ${latest.node_id} is estimated at ${latest.eta.toISOString()}, after the requested time`
+        ? `The shipment from ${latest.node_id} is estimated at ${swedishTime(latest.eta, this.config.eta.timeZone)} Swedish time, after the requested time`
         : null;
     const type = atRisk === order.at_risk ? 'order.eta_changed' : atRisk ? 'order.at_risk' : 'order.at_risk_cleared';
     const updated = await changeOrder(

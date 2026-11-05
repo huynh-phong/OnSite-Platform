@@ -1,0 +1,158 @@
+name: OnSite MVP validation
+
+# Verifies the system on Linux, including the real Docker Compose stack. Deploys nothing, needs no paid
+# service and no repository secrets: every secret below is generated for the run by scripts/init-env.sh.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  LLM_PROVIDER: mock
+
+jobs:
+  tests:
+    name: Typecheck, automated tests and browser E2E (Linux, Node 20)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Generate disposable secrets
+        run: bash scripts/init-env.sh
+
+      - name: Start the three test databases
+        run: docker compose up -d --wait --wait-timeout 120 se-db sim-db central-db
+
+      - name: Install dependencies
+        run: |
+          for app in sweden-simulator onsite-central onsite-local-se web e2e; do
+            (cd "apps/$app" && npm ci)
+          done
+
+      - name: Typecheck
+        run: |
+          for app in sweden-simulator onsite-central onsite-local-se web e2e; do
+            (cd "apps/$app" && npx tsc --noEmit)
+          done
+
+      - name: Unit, integration and frontend tests
+        run: |
+          for app in sweden-simulator onsite-central web onsite-local-se; do
+            (cd "apps/$app" && npm test)
+          done
+
+      - name: Production dependency audit
+        run: |
+          for app in sweden-simulator onsite-central onsite-local-se web; do
+            (cd "apps/$app" && npm audit --omit=dev --audit-level=high)
+          done
+
+      - name: Build for the browser tests
+        run: |
+          for app in sweden-simulator onsite-central onsite-local-se web; do
+            (cd "apps/$app" && npm run build)
+          done
+
+      - name: Browser E2E
+        working-directory: apps/e2e
+        run: |
+          npx playwright install --with-deps chromium
+          npx playwright test
+
+      - name: Keep browser traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: |
+            apps/e2e/test-results/artifacts
+            apps/e2e/test-results/results.json
+          retention-days: 7
+
+      - name: Clean up
+        if: always()
+        run: docker compose down -v
+
+  compose:
+    name: Docker Compose stack (Linux containers)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Generate disposable secrets
+        run: bash scripts/init-env.sh
+
+      - name: Build images
+        run: docker compose build
+
+      - name: Start everything and wait for the healthchecks
+        run: docker compose up -d --wait --wait-timeout 180
+
+      - name: Verify the three databases are separate
+        run: |
+          set -a; . ./.env; set +a
+          docker compose exec -T se-db pg_isready -U "$SE_DB_USER" -d "$SE_DB_NAME"
+          docker compose exec -T sim-db pg_isready -U "$SIM_DB_USER" -d "$SIM_DB_NAME"
+          docker compose exec -T central-db pg_isready -U "$CENTRAL_DB_USER" -d "$CENTRAL_DB_NAME"
+          # Each server knows only its own application's role and database.
+          if docker compose exec -T se-db psql -U "$SE_DB_USER" -d "$SE_DB_NAME" -Atc "SELECT datname FROM pg_database" | grep -E "^($SIM_DB_NAME|$CENTRAL_DB_NAME)$"; then exit 1; fi
+          if docker compose exec -T sim-db psql -U "$SIM_DB_USER" -d "$SIM_DB_NAME" -Atc "SELECT datname FROM pg_database" | grep -E "^($SE_DB_NAME|$CENTRAL_DB_NAME)$"; then exit 1; fi
+          if docker compose exec -T central-db psql -U "$CENTRAL_DB_USER" -d "$CENTRAL_DB_NAME" -Atc "SELECT datname FROM pg_database" | grep -E "^($SE_DB_NAME|$SIM_DB_NAME)$"; then exit 1; fi
+
+      - name: Verify each application service
+        run: |
+          curl -fsS http://localhost:3000/health
+          curl -fsS http://localhost:4000/api/v1/health
+          curl -fsS http://localhost:5000/health
+          curl -fsS http://localhost:6001/health
+          curl -fsS http://localhost:3000/customer | grep -q 'id="root"'
+          curl -fsS http://localhost:5000/ | grep -q 'id="root"'
+          curl -fsS http://localhost:6001/ | grep -q 'id="root"'
+
+      - name: Apply migrations and seed test data
+        run: bash scripts/reset-demo.sh S1
+
+      - name: S1, AI flow, simulator outage, Local to Central delivery, Central outage and recovery, S2
+        run: node scripts/e2e-smoke.mjs
+
+      - name: Collect sanitized logs on failure
+        if: failure()
+        run: |
+          docker compose ps
+          # Mask every generated value before anything leaves the runner.
+          docker compose logs --no-color > logs.txt 2>&1 || true
+          while IFS= read -r line; do
+            case "$line" in
+              *PASSWORD=*|*SECRET=*|*TOKEN=*|*KEY=*|*DATABASE_URL=*)
+                value="${line#*=}"
+                [ -n "$value" ] && python3 -c 'import sys; v=sys.argv[1]; t=open("logs.txt").read().replace(v,"***"); open("logs.txt","w").write(t)' "$value"
+                ;;
+            esac
+          done < .env
+
+      - name: Keep sanitized logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compose-logs
+          path: logs.txt
+          retention-days: 7
+
+      - name: Clean up
+        if: always()
+        run: docker compose down -v

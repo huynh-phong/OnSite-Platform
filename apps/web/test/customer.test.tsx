@@ -240,6 +240,17 @@ describe('tracking an order', () => {
     expect(screen.queryByText(/Waiting for each shipping node/)).not.toBeInTheDocument();
   });
 
+  it('clears the cart once the order is placed', async () => {
+    loginAs('customer');
+    mockApi({ ...baseRoutes, 'POST /orders': () => ({ status: 201, body: order() }), 'GET /orders/SE-ORD-000001': order() });
+    renderAt('/customer/catalog');
+    await userEvent.type(await screen.findByLabelText('Quantity of Portland cement 25 kg bag'), '5');
+    await screen.findByRole('option', { name: 'Demo Site 1, Askim' });
+    await userEvent.click(screen.getByRole('button', { name: 'Place order' }));
+    await screen.findByRole('heading', { name: 'SE-ORD-000001' });
+    expect(JSON.parse(sessionStorage.getItem('onsite.cart')!)).toEqual({});
+  });
+
   it('shows the at-risk warning and the estimate', async () => {
     loginAs('customer');
     mockApi({ ...baseRoutes, 'GET /orders/SE-ORD-000001': order({ at_risk: true, at_risk_reason: 'The shipment from SE-HUB-01 is estimated after the requested time' }) });

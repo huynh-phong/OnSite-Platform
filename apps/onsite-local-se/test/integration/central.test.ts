@@ -213,6 +213,49 @@ describe('Local SE and Central over real HTTP', () => {
       await h.api('POST', '/api/v1/admin/connector/enable', { token: await h.token('admin.se') });
     });
 
+    it('survives concurrent activity, which used to deadlock with TRUNCATE', async () => {
+      let running = true;
+      const noise = (async () => {
+        while (running) {
+          await Promise.allSettled([
+            h.app.container.inventory.sync(),
+            h.app.container.outbox.tick(),
+            h.app.container.eta.tick(),
+            h.app.container.reservations.tick(),
+            h.placeOrder(1),
+          ]);
+        }
+      })();
+      const results = [];
+      for (const scenario of ['S1', 'S2', 'S1', 'S2', 'S1']) {
+        const response = await reset({ scenario, confirm: 'RESET' });
+        results.push(response.status);
+      }
+      running = false;
+      await noise;
+      expect(results).toEqual([200, 200, 200, 200, 200]);
+    });
+
+    it('refuses a second reset while one is running', async () => {
+      const results = await Promise.all([reset({ scenario: 'S1', confirm: 'RESET' }), reset({ scenario: 'S1', confirm: 'RESET' })]);
+      expect(results.map((result) => result.status).sort()).toEqual([200, 409]);
+      expect(results.find((result) => result.status === 409)?.body.error.code).toBe('RESET_IN_PROGRESS');
+    });
+
+    it('pauses the workers around the reset and always resumes them', async () => {
+      const log: string[] = [];
+      h.app.container.demo.attachWorkers({ pause: async () => void log.push('pause'), resume: () => void log.push('resume') });
+      await reset({ scenario: 'S1', confirm: 'RESET' });
+      expect(log).toEqual(['pause', 'resume']);
+      log.length = 0;
+      const original = h.app.container.simulator.resetDemo.bind(h.app.container.simulator);
+      h.app.container.simulator.resetDemo = () => Promise.reject(new Error('down'));
+      const failed = await reset({ scenario: 'S1', confirm: 'RESET' });
+      h.app.container.simulator.resetDemo = original;
+      expect(failed.status).toBe(503);
+      expect(log).toEqual(['pause', 'resume']);
+    });
+
     it('still resets the rest when Central is down, and says so', async () => {
       h.config.centralIngestUrl = 'http://127.0.0.1:9/ingest/events';
       const done = await reset({ scenario: 'S1', confirm: 'RESET' });

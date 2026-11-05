@@ -210,6 +210,8 @@ export function CatalogPage() {
         headers: { 'idempotency-key': idempotencyKeyFor(body) },
       });
       clearOrderKey();
+      // Written here as well: the effect that saves the cart would not run after navigating away.
+      sessionStorage.setItem('onsite.cart', '{}');
       setCart({});
       navigate(`/customer/orders/${order.order_id}?new=1`);
     } catch (failure) {

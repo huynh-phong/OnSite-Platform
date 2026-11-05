@@ -123,6 +123,8 @@ describe('Checkpoint 4: fulfilment and reliability', () => {
       });
       expect(response.body).toMatchObject({ status: 'AWAITING_APPROVAL', at_risk: true });
       expect(response.body.at_risk_reason).toContain('after the requested time');
+      expect(response.body.at_risk_reason).toMatch(/Swedish time/);
+      expect(response.body.at_risk_reason).not.toMatch(/dTd/);
       expect(response.body.eta_is_estimate).toBe(true);
 
       const outbox = await h.pool.query(`SELECT * FROM outbox_events WHERE aggregate_id = $1 AND event_type = 'order.at_risk.v1'`, [
