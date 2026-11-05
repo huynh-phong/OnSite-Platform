@@ -4,7 +4,8 @@ import { requireRole, type AuthOptions } from '../../auth.js';
 import type { SimulatorClient } from '../../connectors/simulator.js';
 import type { Db } from '../../db.js';
 import type { InventoryService } from '../inventory/inventory.service.js';
-import { bearer, errors } from '../routes-common.js';
+import { bearer, errors, Nullable, Timestamp } from '../routes-common.js';
+import type { DemoService } from './demo.service.js';
 import { checkHealth } from './health.service.js';
 import type { MetricsService } from './metrics.service.js';
 
@@ -41,8 +42,69 @@ export function registerAdminRoutes(
   auth: AuthOptions,
   metrics: MetricsService,
   inventory: InventoryService,
+  simulator: SimulatorClient,
+  demo: DemoService,
 ): void {
   const adminOnly = requireRole(auth, 'admin');
+
+  app.get(
+    '/api/v1/system/status',
+    {
+      onRequest: requireRole(auth),
+      schema: {
+        tags: ['health'],
+        security: bearer,
+        summary: 'Whether stock can be trusted right now and whether the source is reachable, for operational warnings',
+        response: {
+          200: Type.Object({
+            inventory_trusted: Type.Boolean(),
+            stale_reason: Nullable(Type.String()),
+            last_successful_sync_at: Nullable(Timestamp),
+            verified_age_s: Nullable(Type.Number()),
+            stale_after_s: Type.Number(),
+            connector_enabled: Type.Boolean(),
+            source_reachable: Type.Boolean(),
+          }),
+          ...errors(401),
+        },
+      },
+    },
+    async () => {
+      const freshness = await inventory.freshness();
+      return {
+        inventory_trusted: freshness.trusted,
+        stale_reason: freshness.staleReason,
+        last_successful_sync_at: freshness.lastSuccessfulSyncAt?.toISOString() ?? null,
+        verified_age_s: freshness.verifiedAgeSeconds,
+        stale_after_s: inventory.staleAfterSeconds,
+        connector_enabled: simulator.enabled,
+        source_reachable: await simulator.isReachable(),
+      };
+    },
+  );
+
+  app.post<{ Body: { scenario: 'S1' | 'S2'; confirm: string; connector?: 'enabled' | 'disabled' } }>(
+    '/api/v1/admin/demo/reset',
+    {
+      onRequest: adminOnly,
+      schema: {
+        tags: ['admin'],
+        security: bearer,
+        summary:
+          'DEMO ONLY: wipes and re-seeds all demo data in the simulator, Local SE and Central. Needs DEMO_RESET_ENABLED=true and confirm="RESET".',
+        body: Type.Object({
+          scenario: Type.Union([Type.Literal('S1'), Type.Literal('S2')]),
+          confirm: Type.String(),
+          connector: Type.Optional(Type.Union([Type.Literal('enabled'), Type.Literal('disabled')])),
+        }),
+        response: {
+          200: Type.Object({ scenario: Type.String(), connector_enabled: Type.Boolean(), central: Type.String() }),
+          ...errors(400, 401, 403, 409, 503),
+        },
+      },
+    },
+    async (request) => demo.reset(request.body.scenario, request.body.confirm, request.body.connector ?? 'enabled'),
+  );
 
   app.get(
     '/api/v1/metrics',

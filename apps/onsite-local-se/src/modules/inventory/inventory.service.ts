@@ -37,6 +37,10 @@ export class InventoryService {
     private readonly log: FastifyBaseLogger,
   ) {}
 
+  get staleAfterSeconds(): number {
+    return this.config.inventory.staleAfterSeconds;
+  }
+
   /** Loads the persisted connector switch into the client. */
   async loadConnectorState(): Promise<void> {
     this.simulator.enabled = await repo.getConnectorEnabled(this.pool, this.config.sourceSystem);

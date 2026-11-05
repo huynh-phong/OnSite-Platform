@@ -18,7 +18,9 @@ services:
       retries: 20
 
   sweden-simulator:
-    build: ./apps/sweden-simulator
+    build:
+      context: .
+      dockerfile: apps/sweden-simulator/Dockerfile
     depends_on:
       sim-db:
         condition: service_healthy
@@ -26,6 +28,8 @@ services:
       PORT: "5000"
       SIM_DATABASE_URL: postgres://${SIM_DB_USER}:${SIM_DB_PASSWORD}@sim-db:5432/${SIM_DB_NAME}
       SIMULATOR_SERVICE_TOKEN: ${SIMULATOR_SERVICE_TOKEN:?run scripts/init-env.sh}
+      SIM_DASHBOARD_PASSWORD: ${SIM_DASHBOARD_PASSWORD:?run scripts/init-env.sh}
+      LOCAL_SE_URL: http://onsite-local-se:4000
     ports:
       - "5000:5000"
     healthcheck:
@@ -51,7 +55,9 @@ services:
       retries: 20
 
   onsite-local-se:
-    build: ./apps/onsite-local-se
+    build:
+      context: .
+      dockerfile: apps/onsite-local-se/Dockerfile
     depends_on:
       se-db:
         condition: service_healthy
@@ -69,10 +75,12 @@ services:
       SIMULATOR_SERVICE_TOKEN: ${SIMULATOR_SERVICE_TOKEN}
       LLM_PROVIDER: ${LLM_PROVIDER:-mock}
       LLM_API_KEY: ${LLM_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       LLM_MODEL: ${LLM_MODEL:-}
       DEMO_PASSWORD: ${DEMO_PASSWORD:?run scripts/init-env.sh}
-      CENTRAL_INGEST_URL: ${CENTRAL_INGEST_URL:-}
-      SE_CENTRAL_TOKEN: ${SE_CENTRAL_TOKEN:-}
+      CENTRAL_INGEST_URL: ${CENTRAL_INGEST_URL:-http://onsite-central:6001/ingest/events}
+      SE_CENTRAL_TOKEN: ${SE_CENTRAL_TOKEN:?run scripts/init-env.sh}
+      DEMO_RESET_ENABLED: ${DEMO_RESET_ENABLED:-false}
     ports:
       - "4000:4000"
     healthcheck:
@@ -81,6 +89,62 @@ services:
       timeout: 3s
       retries: 20
 
+  central-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${CENTRAL_DB_USER:?run scripts/init-env.sh}
+      POSTGRES_PASSWORD: ${CENTRAL_DB_PASSWORD:?run scripts/init-env.sh}
+      POSTGRES_DB: ${CENTRAL_DB_NAME:?run scripts/init-env.sh}
+    volumes:
+      - central-db-data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5435:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  onsite-central:
+    build:
+      context: .
+      dockerfile: apps/onsite-central/Dockerfile
+    depends_on:
+      central-db:
+        condition: service_healthy
+    environment:
+      PORT: "6001"
+      CENTRAL_DATABASE_URL: postgres://${CENTRAL_DB_USER}:${CENTRAL_DB_PASSWORD}@central-db:5432/${CENTRAL_DB_NAME}
+      SE_CENTRAL_TOKEN: ${SE_CENTRAL_TOKEN:?run scripts/init-env.sh}
+      CENTRAL_ADMIN_PASSWORD: ${CENTRAL_ADMIN_PASSWORD:?run scripts/init-env.sh}
+    ports:
+      - "6001:6001"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:6001/health >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  onsite-web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    depends_on:
+      # Started, not healthy: the web server explains an unavailable API itself.
+      onsite-local-se:
+        condition: service_started
+    environment:
+      PORT: "3000"
+      LOCAL_SE_URL: http://onsite-local-se:4000
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
 volumes:
   sim-db-data:
   se-db-data:
+  central-db-data:

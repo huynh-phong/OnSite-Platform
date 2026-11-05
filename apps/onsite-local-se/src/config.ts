@@ -18,7 +18,7 @@ function dataKey(): Buffer {
   return key;
 }
 
-const llmProviders = ['mock', 'anthropic'] as const;
+const llmProviders = ['mock', 'anthropic', 'gemini'] as const;
 export type LlmProviderName = (typeof llmProviders)[number];
 
 function llmProvider(): LlmProviderName {
@@ -29,7 +29,14 @@ function llmProvider(): LlmProviderName {
   return value as LlmProviderName;
 }
 
+/** The key for the chosen provider. Gemini also accepts its conventional variable name. */
+export function resolveLlmApiKey(provider: LlmProviderName): string | undefined {
+  if (provider === 'gemini') return process.env.GEMINI_API_KEY || process.env.LLM_API_KEY || undefined;
+  return process.env.LLM_API_KEY || undefined;
+}
+
 export function loadConfig() {
+  const provider = llmProvider();
   const jwtSecret = required('SE_JWT_SECRET');
   if (jwtSecret.length < 32) throw new Error('SE_JWT_SECRET must be at least 32 characters');
   return {
@@ -45,8 +52,8 @@ export function loadConfig() {
     centralIngestUrl: process.env.CENTRAL_INGEST_URL || undefined,
     centralServiceToken: process.env.SE_CENTRAL_TOKEN || undefined,
     llm: {
-      provider: llmProvider(),
-      apiKey: process.env.LLM_API_KEY || undefined,
+      provider,
+      apiKey: resolveLlmApiKey(provider),
       model: process.env.LLM_MODEL || undefined,
       timeoutMs: numberFrom('LLM_TIMEOUT_SECONDS', 10) * 1000,
       /** A claim older than this is treated as an interrupted call and may be retried. */
@@ -54,6 +61,8 @@ export function loadConfig() {
       maxAttempts: 3,
     },
     demoPassword: required('DEMO_PASSWORD'),
+    /** Lets an admin wipe and re-seed all demo data from the API. Off unless asked for. */
+    demoResetEnabled: process.env.DEMO_RESET_ENABLED === 'true',
     sourceSystem: 'sweden-legacy',
     inventory: {
       safetyRatio: numberFrom('INVENTORY_SAFETY_RATIO', 0.1),

@@ -8,7 +8,7 @@ import type { Db } from '../../db.js';
 import { AppError } from '../../errors.js';
 import { inTx } from '../../tx.js';
 import { upsertInventoryRow } from '../inventory/inventory.repository.js';
-import { bumpCounter, COUNTERS } from '../metrics/counters.js';
+import { bumpCounter, COUNTERS, readCounters } from '../metrics/counters.js';
 import type { NotificationHub } from '../notifications/hub.js';
 import { hashRawValue, normalizeRawValue, type NormalizationField } from './key.js';
 import * as repo from './normalization.repository.js';
@@ -220,6 +220,7 @@ export class NormalizationService {
       this.llm,
       { field: review.field, rawValue: review.raw_value, description: review.source_description, allowedValues: allowed },
       this.config.llm.timeoutMs,
+      (failure) => this.log.warn({ ...failure, review_id: review.review_id, model: this.llm.modelVersion }, 'LLM call failed'),
     );
     if (result.kind === 'ok') {
       await repo.completeAiWork(this.pool, review.review_id, token, {
@@ -255,6 +256,30 @@ export class NormalizationService {
       scope: { allStaff: true },
       data: { review_id: review.review_id, field: review.field },
     });
+  }
+
+  /** What staff need in order to see which provider made a suggestion, and what reuse has saved. */
+  async stats() {
+    const counters = await readCounters(this.pool);
+    const value = (name: string) => counters[name] ?? 0;
+    const records = value(COUNTERS.records);
+    return {
+      provider: this.config.llm.provider,
+      model_version: this.llm.modelVersion,
+      is_live_provider: this.config.llm.provider !== 'mock',
+      auto_approval: false as const,
+      ai_calls_total: value(COUNTERS.aiCalls),
+      normalization_cache_hits_total: value(COUNTERS.cacheHits),
+      normalization_records_total: records,
+      normalization_cache_hit_rate: records === 0 ? null : value(COUNTERS.cacheHits) / records,
+      outcomes: {
+        accepted_as_is: value(COUNTERS.acceptedAsIs),
+        edited: value(COUNTERS.edited),
+        rejected: value(COUNTERS.rejected),
+        invalid_output: value(COUNTERS.invalidOutput),
+        unavailable: value(COUNTERS.aiUnavailable),
+      },
+    };
   }
 
   listReviews(status?: string) {

@@ -1,23 +1,34 @@
-# OnSite MVP: Local Sweden API (Phase 1)
+# OnSite MVP
 
 OnSite, by team PYRAMID, is a middleware layer on top of a building-materials retailer's existing ERP/WMS. It takes B2B
 orders, checks usable stock across 10 stores and 1 hub, routes and splits orders deterministically, reserves stock
-atomically at the source system, and coordinates each node's approval, dispatch and delivery. AI has one job:
-suggesting normalizations of source data, which a human always reviews.
+atomically at the source system, and coordinates each node's approval, dispatch and delivery. Filtered events flow to
+OnSite Central for monitoring. AI has one job: suggesting normalizations of source data, which a human always reviews.
 
-This repo holds **OnSite Local SE** (`apps/onsite-local-se`, port 4000) and the **Sweden Legacy Simulator**
-(`apps/sweden-simulator`, port 5000). Each has its own PostgreSQL database, and they talk only over HTTP.
+| Service | Address | What it is | Database |
+|---|---|---|---|
+| OnSite Web | http://localhost:3000 | Customer, Staff and Admin interfaces, and the proxy to Local SE | None |
+| OnSite Local SE | http://localhost:4000 (`/docs`) | The core backend | `se-db`, port 5433 |
+| Sweden Legacy Simulator | http://localhost:5000 (`/docs`) | Simulated ERP/WMS and its dashboard. Runs without OnSite | `sim-db`, port 5434 |
+| OnSite Central | http://localhost:6001 (`/docs`) | Event ingestion and monitoring dashboard | `central-db`, port 5435 |
+
+Central uses 6001 rather than the 6000 in the architecture report: browsers and `fetch` refuse to connect to 6000.
 
 - Source of truth: [docs/ONSITE_BAO_CAO_KIEN_TRUC_VA_KE_HOACH_MVP.md](docs/ONSITE_BAO_CAO_KIEN_TRUC_VA_KE_HOACH_MVP.md)
-- Status, test results, API inventory and known issues: [docs/PHASE1_COMPLETION_REPORT.md](docs/PHASE1_COMPLETION_REPORT.md)
+- Status, test results and limitations: [docs/PHASE2_COMPLETION_REPORT.md](docs/PHASE2_COMPLETION_REPORT.md) and [docs/PHASE1_COMPLETION_REPORT.md](docs/PHASE1_COMPLETION_REPORT.md)
 
-## Run with Docker
+## Configure
 
-Requires Docker with Compose, and Bash (Git Bash on Windows). This path has not been run yet: see the report.
+`init-env.sh` creates a git-ignored `.env` with random local secrets. If `.env` already exists, it only appends settings
+that are missing, and changes nothing else.
 
 ```bash
 scripts/init-env.sh
 ```
+
+## Run with Docker
+
+Requires Docker with Compose, and Bash (Git Bash on Windows). **This path has not been run yet: see the report.**
 
 ```bash
 docker compose up --build -d
@@ -27,21 +38,12 @@ docker compose up --build -d
 scripts/reset-demo.sh S1
 ```
 
-`init-env.sh` writes a git-ignored `.env` with random local secrets. `reset-demo.sh [S1|S2]` drops and re-seeds both
-databases with an inventory scenario, which is how you switch between S1 and S2:
-
-| Scenario | Store B | Hub | Order of 100 bags of `SE-CEM-025` |
-|---|---|---|---|
-| S1 | 60 on hand, 54 usable | 60 on hand, 54 usable | Split 54 + 46, `AWAITING_APPROVAL` |
-| S2 | 60 on hand, 54 usable | 40 on hand, 36 usable | `NEEDS_REVIEW`, fulfillable 90 |
-
 ## Run without Docker
 
-For a machine without Docker. Needs PostgreSQL 16 on the ports and with the credentials from `.env` (5433 and 5434),
-then Node.js 20 or later:
+Needs PostgreSQL 16 on ports 5433, 5434 and 5435 with the credentials from `.env`, and Node.js 20 or later.
 
 ```bash
-(cd apps/sweden-simulator && npm ci) && (cd apps/onsite-local-se && npm ci)
+for app in sweden-simulator onsite-central onsite-local-se web; do (cd apps/$app && npm ci); done
 ```
 
 ```bash
@@ -56,141 +58,66 @@ scripts/run-native.sh reset S1
 scripts/run-native.sh down
 ```
 
-Logs go to `.native/`.
+`up` builds and starts all four services. `reset` also works while they run; expect a few harmless errors in the log while
+the databases are being recreated. Logs go to `.native/`.
 
-| Service | URL |
-|---|---|
-| Local SE health | http://localhost:4000/api/v1/health |
-| Local SE Swagger | http://localhost:4000/docs |
-| Simulator health | http://localhost:5000/health |
-| Simulator Swagger | http://localhost:5000/docs |
+## Logins
 
-## Demo accounts
+Passwords are in your `.env`.
 
-The password for all of them is the `DEMO_PASSWORD` value in your `.env`.
+| Where | User | Password setting | Scope |
+|---|---|---|---|
+| OnSite Web | `buyer.nordbygg` | `DEMO_PASSWORD` | Customer: Nordbygg AB |
+| OnSite Web | `staff.store-b` | `DEMO_PASSWORD` | Staff: `SE-STORE-B` |
+| OnSite Web | `staff.hub-01` | `DEMO_PASSWORD` | Staff: `SE-HUB-01` |
+| OnSite Web | `staff.store-c` | `DEMO_PASSWORD` | Staff: `SE-STORE-C` |
+| OnSite Web | `admin.se` | `DEMO_PASSWORD` | Admin: all of Sweden |
+| Simulator dashboard | (password only) | `SIM_DASHBOARD_PASSWORD` | Simulator |
+| Central dashboard | (password only) | `CENTRAL_ADMIN_PASSWORD` | Central |
 
-| User | Role | Scope |
+## Scenarios
+
+| Scenario | Store B | Hub | Order of 100 bags of `SE-CEM-025` |
+|---|---|---|---|
+| S1 | 60 on hand, 54 usable | 60 on hand, 54 usable | Split 54 + 46, `AWAITING_APPROVAL` |
+| S2 | 60 on hand, 54 usable | 40 on hand, 36 usable | `NEEDS_REVIEW`, fulfillable 90 |
+
+Switch with **Operations → Demo reset** as `admin.se`, which resets all three systems together (needs
+`DEMO_RESET_ENABLED=true`), or with `scripts/run-native.sh reset S2`. Step-by-step demo instructions are in the
+[Phase 2 report](docs/PHASE2_COMPLETION_REPORT.md#h-demo-instructions).
+
+## AI provider
+
+| `LLM_PROVIDER` | Key | Note |
 |---|---|---|
-| `buyer.nordbygg` | customer | Nordbygg AB, sites `SE-SITE-001` (near) and `SE-SITE-002` (far) |
-| `staff.store-b` | staff | `SE-STORE-B` |
-| `staff.hub-01` | staff | `SE-HUB-01` |
-| `staff.store-c` | staff | `SE-STORE-C` |
-| `admin.se` | admin | All of Sweden |
+| `mock` | None | Keyword rules, not a model. The interface says so |
+| `gemini` | `GEMINI_API_KEY` | Default model `gemini-flash-lite-latest`. Change with `LLM_MODEL` |
+| `anthropic` | `LLM_API_KEY` | Default model `claude-opus-5-5`. Change with `LLM_MODEL` |
 
-## The full order flow with curl
+The key stays on the server. The provider receives only the value, the field, the product description and the allowed
+values. Every suggestion waits for a human, and an approved value is reused with no further AI call.
 
-Load `.env` first, so that `$DEMO_PASSWORD` and `$SIMULATOR_SERVICE_TOKEN` are set, and give the sync worker 10 seconds
-after a reset.
+Check connectivity with three short calls:
 
 ```bash
-set -a; . ./.env; set +a; API=http://localhost:4000/api/v1
+cd apps/onsite-local-se && npm run llm:smoke
 ```
-
-```bash
-login() { curl -s "$API/auth/login" -H 'content-type: application/json' -d "{\"username\":\"$1\",\"password\":\"$DEMO_PASSWORD\"}" | node -pe 'JSON.parse(require("fs").readFileSync(0)).access_token'; }
-```
-
-```bash
-BUYER=$(login buyer.nordbygg); STAFF_B=$(login staff.store-b); STAFF_HUB=$(login staff.hub-01)
-```
-
-Place an order. On S1, 100 bags split 54 at Store B and 46 at the hub:
-
-```bash
-curl -s "$API/orders" -H "authorization: Bearer $BUYER" -H "idempotency-key: $(date +%s)" -H 'content-type: application/json' -d '{"sales_store_id":"SE-STORE-B","site_id":"SE-SITE-001","requested_delivery_at":"2030-01-15T12:00:00+01:00","items":[{"sku_id":"SE-CEM-025","quantity":100,"unit":"bag"}]}'
-```
-
-Each node sees its own task. Note the `task_id` and `version` of each:
-
-```bash
-curl -s "$API/staff/tasks?status=PENDING_APPROVAL" -H "authorization: Bearer $STAFF_B"
-```
-
-Then, for Store B and likewise for the hub with `$STAFF_HUB`, using the version returned by the previous step each time:
-
-```bash
-curl -s "$API/staff/tasks/TASK_ID/approve" -H "authorization: Bearer $STAFF_B" -H 'content-type: application/json' -d '{"version":1}'
-```
-
-```bash
-curl -s "$API/staff/tasks/TASK_ID/dispatch" -H "authorization: Bearer $STAFF_B" -H 'content-type: application/json' -d '{"version":2}'
-```
-
-```bash
-curl -s "$API/staff/tasks/TASK_ID/deliver" -H "authorization: Bearer $STAFF_B" -H 'content-type: application/json' -d '{"version":3,"delivered_qty":54}'
-```
-
-Track it, as the customer:
-
-```bash
-curl -s "$API/orders/SE-ORD-000001" -H "authorization: Bearer $BUYER"
-```
-
-See what was shipped, at the simulator:
-
-```bash
-curl -s "http://localhost:5000/legacy/transactions?sku_id=SE-CEM-025" -H "authorization: Bearer $SIMULATOR_SERVICE_TOKEN"
-```
-
-## The AI flow
-
-The seed includes `SE-CEM-STD-025` with a free-text unit and description, and Store C reports stock in `st`, so three
-reviews are waiting after the first sync. A new product triggers the same flow:
-
-```bash
-curl -s http://localhost:5000/legacy/products -H "authorization: Bearer $SIMULATOR_SERVICE_TOKEN" -H 'content-type: application/json' -d '{"sku_id":"SE-NEW-1","name":"Ny cement","source_unit":"knippe","source_category":"cement","source_description":"Ny cement utan vikt","unit_price_sek":99}'
-```
-
-```bash
-curl -s "$API/staff/normalization-reviews?status=PENDING" -H "authorization: Bearer $STAFF_B"
-```
-
-```bash
-curl -s "$API/staff/normalization-reviews/REVIEW_ID/approve" -H "authorization: Bearer $STAFF_B" -H 'content-type: application/json' -d '{"value":"piece"}'
-```
-
-The product is now visible to customers, and the same value never costs another AI call. One review exists per
-distinct unknown value, so a product with an unknown unit and an unknown pack-size text needs two approvals.
-
-`LLM_PROVIDER=mock` is the default. For a real provider, set `LLM_PROVIDER=anthropic` and `LLM_API_KEY` in `.env`
-(`LLM_MODEL` is optional). The key stays on the server, and the provider receives only the value, the field, the product
-description and the allowed values.
-
-## Simulating failures
-
-Turn on a source outage. Every other `/legacy/*` endpoint returns 503 until it is turned off, and Local SE recovers
-by itself:
-
-```bash
-curl -s http://localhost:5000/legacy/admin/outage -H "authorization: Bearer $SIMULATOR_SERVICE_TOKEN" -H 'content-type: application/json' -d '{"enabled":true}'
-```
-
-Admins can also disconnect the connector with `POST /api/v1/admin/connector/disable` and `.../enable`.
 
 ## Test
 
-Tests create their own `*_test` databases on the PostgreSQL servers from `.env` and leave the demo data alone. The
-database user needs permission to create databases. Unit tests need no database.
+Tests use their own databases on the servers from `.env`, and leave the demo data alone.
 
 ```bash
-cd apps/onsite-local-se && npm run test:unit
-```
-
-```bash
-cd apps/onsite-local-se && npm test
-```
-
-```bash
-cd apps/sweden-simulator && npm test
+for app in sweden-simulator onsite-central web onsite-local-se; do (cd apps/$app && npm test); done
 ```
 
 Black-box check of a running, freshly reset stack, with real processes and real worker timing:
 
 ```bash
-SMOKE_LOG_FILES=.native/local-se.log,.native/simulator.log node scripts/e2e-smoke.mjs
+SMOKE_LOG_FILES=.native/local-se.log,.native/simulator.log,.native/central.log,.native/web.log node scripts/e2e-smoke.mjs
 ```
 
-Measure the configured AI provider over the 50 labelled examples in `seed/normalization-testset.json`:
+Measure the AI provider over 50 labelled examples. This makes 50 calls to the configured provider, which may cost money:
 
 ```bash
 cd apps/onsite-local-se && npm run eval:normalization
@@ -211,13 +138,14 @@ cd apps/onsite-local-se && npm run eval:normalization
 | `SOURCE_TIMEOUT_MS` | 3000 | Timeout on calls to the source |
 | `LLM_TIMEOUT_SECONDS` | 10 | After this, a review goes to a human with no suggestion |
 | `LLM_CLAIM_LEASE_SECONDS` | 60 | After this, an interrupted AI call may be retried |
-| `CENTRAL_INGEST_URL`, `SE_CENTRAL_TOKEN` | empty | Empty means outbox events stay `PENDING` |
+| `CENTRAL_INGEST_URL` | Central in compose and native runs | Empty in other setups means outbox events stay `PENDING` |
+| `DEMO_RESET_ENABLED` | `false` in the code | Lets an admin wipe all demo data. `.env.example` turns it on: never do that outside a demo |
 
 ## What is simulated
 
 - The ERP/WMS: the simulator stands in for it, so "atomic reservation" is proven in a simulated environment only.
-- All stores, customers, sites, coordinates and prices in the seed are made up. Business metrics are labelled simulated.
+- All stores, customers, sites, coordinates and prices in the seed are made up. Business figures are labelled simulated, and KPIs are not real-world results.
 - Travel speed (40 km/h), unloading (15 minutes), preparation times and dispatch slots are configured assumptions.
 - ETAs are estimates. Picking lists and order confirmations are not tax invoices.
-- The `mock` AI provider is keyword rules, not a model. Its evaluation numbers say nothing about AI quality.
-- There is no real payment, invoicing, GPS, SMS or OnSite Central in this phase.
+- Denmark and Norway appear on Central only as future expansion. They are not deployed.
+- There is no real payment, invoicing, GPS or SMS.

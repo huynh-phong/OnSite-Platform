@@ -69,7 +69,7 @@ export async function buildApp(config: Config, pool: Db, options: ContainerOptio
 
   const auth = { jwtSecret: config.jwtSecret, countryCode: config.countryCode };
   registerHealthRoutes(app, { pool, simulator: container.simulator, centralUrl: config.centralIngestUrl });
-  registerAdminRoutes(app, auth, container.metrics, container.inventory);
+  registerAdminRoutes(app, auth, container.metrics, container.inventory, container.simulator, container.demo);
   registerAuthRoutes(app, new AuthService(pool, config));
   registerCatalogRoutes(app, auth, container.catalog);
   registerOrderRoutes(app, auth, container.orders, container.documents);

@@ -7,7 +7,11 @@ import { sweepExpiredReservations } from './services/reservations.js';
 const config = loadConfig();
 const pool = createPool(config.databaseUrl);
 const applied = await runMigrations(pool);
-const app = await buildApp(pool, { serviceToken: config.serviceToken });
+const app = await buildApp(pool, {
+  serviceToken: config.serviceToken,
+  dashboardPassword: config.dashboardPassword,
+  localSeUrl: config.localSeUrl,
+});
 app.log.info({ applied }, 'migrations complete');
 
 // Keeps running during a simulated outage: the outage only affects the API.

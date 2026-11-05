@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Runs the stack without Docker: both apps as plain Node processes against PostgreSQL 16 servers you
-# already have on the ports in .env (5433 and 5434). For machines without Docker; compose is the normal way.
+# Runs the whole system without Docker: four plain Node processes, against PostgreSQL 16 servers you already
+# have on the ports in .env (5433, 5434 and 5435). For machines without Docker; compose is the normal way.
 #
-#   scripts/run-native.sh up      build, then start both apps
-#   scripts/run-native.sh down    stop both apps
+#   scripts/run-native.sh up      build, then start everything
+#   scripts/run-native.sh down    stop everything
 #   scripts/run-native.sh reset [S1|S2]
 #
 # Logs go to .native/ (git-ignored).
@@ -15,8 +15,10 @@ mkdir -p "$state"
 
 load_env() {
   set -a; . ./.env; set +a
-  # The value in .env is the container address.
+  # The values in .env are the container addresses.
   export SIMULATOR_BASE_URL="http://localhost:5000"
+  export LOCAL_SE_URL="http://localhost:4000"
+  export CENTRAL_INGEST_URL="${CENTRAL_INGEST_URL:-http://localhost:6001/ingest/events}"
   export LOG_LEVEL="${LOG_LEVEL:-info}"
 }
 
@@ -43,19 +45,32 @@ wait_for() {
   return 1
 }
 
+start() { # name, directory, port, entry
+  (cd "$2" && PORT="$3" exec node "$4" >"$state/$1.log" 2>&1 </dev/null) &
+}
+
 case "${1:-}" in
   up)
     load_env
+    (cd apps/web && npm run --silent build)
     (cd apps/sweden-simulator && npm run --silent build)
+    (cd apps/onsite-central && npm run --silent build)
     (cd apps/onsite-local-se && npm run --silent build)
-    (cd apps/sweden-simulator && PORT=5000 exec node dist/server.js >"$state/simulator.log" 2>&1 </dev/null) &
+    start simulator apps/sweden-simulator 5000 dist/server.js
     wait_for http://localhost:5000/health
-    (cd apps/onsite-local-se && PORT=4000 exec node dist/server.js >"$state/local-se.log" 2>&1 </dev/null) &
+    start central apps/onsite-central 6001 dist/server.js
+    wait_for http://localhost:6001/health
+    start local-se apps/onsite-local-se 4000 dist/server.js
     wait_for http://localhost:4000/api/v1/health
-    echo "Stack is up. If the databases are empty: scripts/run-native.sh reset"
+    start web apps/web 3000 dist-server/index.js
+    wait_for http://localhost:3000/health
+    echo "Up. Web: http://localhost:3000   Simulator: http://localhost:5000   Central: http://localhost:6001"
+    echo "If the databases are empty: scripts/run-native.sh reset"
     ;;
   down)
+    stop_one web
     stop_one local-se
+    stop_one central
     stop_one simulator
     echo "Stack stopped."
     ;;

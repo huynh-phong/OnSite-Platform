@@ -76,6 +76,35 @@ export function registerNormalizationRoutes(app: FastifyInstance, auth: AuthOpti
     async (request) => (await service.listReviews(request.query.status)).map(toView),
   );
 
+  app.get(
+    '/api/v1/staff/normalization-reviews/stats',
+    {
+      onRequest: staffOrAdmin,
+      schema: {
+        tags: ['normalization'],
+        security: bearer,
+        summary: 'AI call and mapping-reuse counters, and which provider is in use. AI never approves by itself.',
+        response: {
+          200: Type.Object(
+            {
+              provider: Type.String(),
+              model_version: Type.String(),
+              is_live_provider: Type.Boolean(),
+              auto_approval: Type.Boolean(),
+              ai_calls_total: Type.Integer(),
+              normalization_cache_hits_total: Type.Integer(),
+              normalization_records_total: Type.Integer(),
+              normalization_cache_hit_rate: Nullable(Type.Number()),
+              outcomes: Type.Any(),
+            },
+          ),
+          ...errors(401, 403),
+        },
+      },
+    },
+    async () => service.stats(),
+  );
+
   app.post<{ Params: { id: string }; Body: { value?: string } }>(
     '/api/v1/staff/normalization-reviews/:id/approve',
     {

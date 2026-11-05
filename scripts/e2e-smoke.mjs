@@ -14,7 +14,9 @@ const env = Object.fromEntries(
     .filter((line) => /^[A-Z_]+=/.test(line))
     .map((line) => [line.slice(0, line.indexOf('=')), line.slice(line.indexOf('=') + 1)]),
 );
-const LOCAL = process.env.LOCAL_SE_URL ?? 'http://localhost:4000';
+// Through the web server, as a browser would. Everything below therefore also tests the proxy.
+const LOCAL = process.env.LOCAL_SE_URL ?? 'http://localhost:3000';
+const CENTRAL = process.env.CENTRAL_URL ?? 'http://localhost:6001';
 const SIM = process.env.SIMULATOR_URL ?? 'http://localhost:5000';
 const simHeaders = { authorization: `Bearer ${env.SIMULATOR_SERVICE_TOKEN}`, 'content-type': 'application/json' };
 
@@ -68,8 +70,9 @@ const login = async (username) => {
 
 console.log('Health');
 const health = await local('GET', '/health');
-check('Local SE, DB and simulator are up; Central not configured', health.body.status === 'ok' && health.body.central === 'not_configured', health.body);
-check('Swagger is served on both services', (await call('GET', `${LOCAL}/docs/json`)).status === 200 && (await call('GET', `${SIM}/docs/json`)).status === 200);
+check('Local SE, DB and simulator are up; Central configured', health.body.status === 'ok' && health.body.central === 'configured', health.body);
+check('Swagger is served on the services', (await call('GET', 'http://localhost:4000/docs/json')).status === 200 && (await call('GET', `${SIM}/docs/json`)).status === 200 && (await call('GET', `${CENTRAL}/docs/json`)).status === 200);
+check('The web app and both dashboards are served', ((await call('GET', `${LOCAL}/customer`)).body + '').includes('root') && ((await call('GET', `${SIM}/`)).body + '').includes('root') && ((await call('GET', `${CENTRAL}/`)).body + '').includes('root'));
 
 const [buyer, staffB, staffHub, admin] = await Promise.all(['buyer.nordbygg', 'staff.store-b', 'staff.hub-01', 'admin.se'].map(login));
 
@@ -179,7 +182,9 @@ check('orders work again after recovery', afterOutage.body.status === 'AWAITING_
 
 console.log('SSE');
 const controller = new AbortController();
-const stream = await fetch(`${LOCAL}/api/v1/stream?token=${staffB}`, { signal: controller.signal });
+const refusedInUrl = await fetch(`${LOCAL}/api/v1/stream?token=${staffB}`);
+check('the web proxy refuses a token in a URL', refusedInUrl.status === 400);
+const stream = await fetch(`${LOCAL}/api/v1/stream`, { headers: { authorization: `Bearer ${staffB}` }, signal: controller.signal });
 check('the stream opens as text/event-stream', stream.headers.get('content-type')?.includes('text/event-stream'));
 const reader = stream.body.getReader();
 const seen = (async () => {
@@ -197,14 +202,38 @@ const received = await Promise.race([seen, sleep(5000).then(() => '')]);
 check('a task.assigned event arrives', received.includes('event: task.assigned'));
 controller.abort();
 
-console.log('Outbox without Central');
-const metrics = (await local('GET', '/metrics', { token: admin })).body;
-check('events stay pending and are counted', metrics.outbox.outbox_pending > 0 && metrics.outbox.outbox_delivered === 0, metrics.outbox);
+console.log('Central');
+const centralLogin = await fetch(`${CENTRAL}/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ password: env.CENTRAL_ADMIN_PASSWORD }) });
+const cookie = (centralLogin.headers.get('set-cookie') ?? '').split(';')[0];
+const centralGet = async (url) => (await fetch(`${CENTRAL}${url}`, { headers: { cookie } })).json();
+const centralPost = (url, body) => fetch(`${CENTRAL}${url}`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+const projected = await until('the delivered order to reach Central', async () => {
+  const dashboard = await centralGet('/dashboard');
+  return dashboard.kpis.delivered_orders >= 1 ? dashboard : null;
+});
+check('Central received the delivered order, with its OTIF', projected.kpis.simulated_otif_rate === 1, projected.kpis);
+check('Central measured a sync lag', projected.central_sync_lag_ms.latest !== null);
+const before2 = (await local('GET', '/metrics', { token: admin })).body.business.orders_total;
+await until('the outbox to drain', async () => (await local('GET', '/metrics', { token: admin })).body.outbox.outbox_pending === 0);
+const receivedBefore = (await centralGet('/dashboard')).countries[0].events_received;
+
+console.log('Central outage and recovery');
+await centralPost('/admin/offline', { enabled: true });
+const whileDown = await local('POST', '/orders', { token: buyer, headers: { 'idempotency-key': randomUUID() }, body: { ...orderBody, items: [{ sku_id: 'SE-CEM-040', quantity: 2, unit: 'bag' }] } });
+check('Local still takes orders with Central down', whileDown.body.status === 'AWAITING_APPROVAL', whileDown.body);
+await sleep(3000);
+const stuck = (await local('GET', '/metrics', { token: admin })).body.outbox.outbox_pending;
+check('events wait in the outbox', stuck > 0, stuck);
+await centralPost('/admin/offline', { enabled: false });
+await until('the outbox to drain after recovery', async () => (await local('GET', '/metrics', { token: admin })).body.outbox.outbox_pending === 0, 90_000);
+const caughtUp = await centralGet('/dashboard');
+check('Central caught up on the new order', caughtUp.kpis.total_orders === before2 + 1, { before2, kpis: caughtUp.kpis });
+check('nothing was counted twice', caughtUp.countries[0].events_received >= receivedBefore + stuck && caughtUp.countries[0].duplicate_events_ignored === 0, caughtUp.countries[0]);
 
 const logFiles = (process.env.SMOKE_LOG_FILES ?? '').split(',').filter(Boolean);
 if (logFiles.length) {
   console.log('Secrets in logs');
-  const secrets = [env.DEMO_PASSWORD, env.SIMULATOR_SERVICE_TOKEN, env.SE_JWT_SECRET, env.SE_DATA_KEY, staffB, buyer, admin];
+  const secrets = [env.DEMO_PASSWORD, env.SIMULATOR_SERVICE_TOKEN, env.SE_JWT_SECRET, env.SE_DATA_KEY, env.GEMINI_API_KEY, env.SE_CENTRAL_TOKEN, env.CENTRAL_ADMIN_PASSWORD, env.SIM_DASHBOARD_PASSWORD, staffB, buyer, admin].filter(Boolean);
   for (const file of logFiles) {
     const content = existsSync(file) ? readFileSync(file, 'utf8') : '';
     check(`${path.basename(file)} has log lines with request ids`, content.includes('request_id'));

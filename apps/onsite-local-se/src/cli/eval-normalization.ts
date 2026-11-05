@@ -1,13 +1,14 @@
 import { readFile } from 'node:fs/promises';
+import { resolveLlmApiKey } from '../config.js';
 import { createLlmProvider } from '../connectors/llm.js';
 import { runEvaluation, summarize, type LabelledExample } from '../modules/normalization/eval.js';
 
 // Reads only what it needs, so that it runs without a database or the other secrets.
-const provider = (process.env.LLM_PROVIDER ?? 'mock') as 'mock' | 'anthropic';
+const provider = (process.env.LLM_PROVIDER ?? 'mock') as 'mock' | 'anthropic' | 'gemini';
 const timeoutMs = Number(process.env.LLM_TIMEOUT_SECONDS ?? 30) * 1000;
 const llm = createLlmProvider({
   provider,
-  apiKey: process.env.LLM_API_KEY || undefined,
+  apiKey: resolveLlmApiKey(provider),
   model: process.env.LLM_MODEL || undefined,
   timeoutMs,
   claimLeaseSeconds: 60,

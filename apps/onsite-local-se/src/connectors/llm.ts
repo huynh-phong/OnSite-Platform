@@ -57,7 +57,12 @@ export function validateLlmOutput(input: SuggestInput, output: unknown): ValidSu
 }
 
 /** Runs the provider with a timeout. Never throws: failure means the review is handled manually. */
-export async function callLlm(provider: LlmProvider, input: SuggestInput, timeoutMs: number): Promise<LlmResult> {
+export async function callLlm(
+  provider: LlmProvider,
+  input: SuggestInput,
+  timeoutMs: number,
+  onError?: (failure: { status?: number; name: string }) => void,
+): Promise<LlmResult> {
   const controller = new AbortController();
   let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<never>((_, reject) => {
@@ -70,7 +75,10 @@ export async function callLlm(provider: LlmProvider, input: SuggestInput, timeou
     const output = await Promise.race([provider.suggest(input, controller.signal), timeout]);
     const valid = validateLlmOutput(input, output);
     return valid ? { kind: 'ok', ...valid } : { kind: 'invalid' };
-  } catch {
+  } catch (error) {
+    // Only the status and type: provider messages can echo request details.
+    const { status, name } = error as { status?: number; name: string };
+    onError?.({ ...(typeof status === 'number' ? { status } : {}), name });
     return { kind: 'unavailable' };
   } finally {
     clearTimeout(timer);
@@ -199,8 +207,80 @@ export class AnthropicLlmProvider implements LlmProvider {
   }
 }
 
+// An alias, because Google retires specific model ids for new keys. Pin one with LLM_MODEL if needed.
+const DEFAULT_GEMINI_MODEL = 'gemini-flash-lite-latest';
+
+/** Gemini's schema dialect: upper-case types, and nullable instead of a type list. */
+function geminiSchema(input: SuggestInput) {
+  return {
+    type: 'OBJECT',
+    properties: {
+      suggested_value: input.allowedValues
+        ? { type: 'STRING', enum: [...input.allowedValues] }
+        : { type: 'STRING' },
+      confidence: { type: 'NUMBER' },
+      reason: { type: 'STRING' },
+      evidence: { type: 'STRING', nullable: true },
+    },
+    required: ['suggested_value', 'confidence', 'reason'],
+  };
+}
+
+/** Real provider, through Google's official SDK, which loads only when this provider is selected. */
+export class GeminiLlmProvider implements LlmProvider {
+  readonly modelVersion: string;
+  private client: Promise<import('@google/genai').GoogleGenAI> | undefined;
+
+  constructor(
+    private readonly apiKey: string,
+    model?: string,
+    private readonly baseUrl?: string,
+  ) {
+    this.modelVersion = model ?? DEFAULT_GEMINI_MODEL;
+  }
+
+  private getClient() {
+    this.client ??= import('@google/genai').then(
+      ({ GoogleGenAI }) =>
+        new GoogleGenAI({
+          apiKey: this.apiKey,
+          ...(this.baseUrl ? { httpOptions: { baseUrl: this.baseUrl } } : {}),
+        }),
+    );
+    return this.client;
+  }
+
+  async suggest(input: SuggestInput, signal: AbortSignal): Promise<unknown> {
+    const client = await this.getClient();
+    const request = () =>
+      client.models.generateContent({
+        model: this.modelVersion,
+        contents: buildUserPrompt(input),
+        config: {
+          systemInstruction: SYSTEM_PROMPT,
+          responseMimeType: 'application/json',
+          responseSchema: geminiSchema(input) as never,
+          abortSignal: signal,
+        },
+      });
+    try {
+      return (await request()).text;
+    } catch (error) {
+      // One quick retry for a provider hiccup, inside the same overall timeout. Anything else goes to a human.
+      const { status } = error as { status?: number };
+      if (status !== 429 && !(typeof status === 'number' && status >= 500)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      return (await request()).text;
+    }
+  }
+}
+
 export function createLlmProvider(config: Config['llm']): LlmProvider {
   if (config.provider === 'mock') return new MockLlmProvider();
+  if (config.provider === 'gemini') {
+    if (!config.apiKey) throw new Error('GEMINI_API_KEY is required when LLM_PROVIDER is gemini');
+    return new GeminiLlmProvider(config.apiKey, config.model);
+  }
   if (!config.apiKey) throw new Error('LLM_API_KEY is required when LLM_PROVIDER is anthropic');
   return new AnthropicLlmProvider(config.apiKey, config.model);
 }

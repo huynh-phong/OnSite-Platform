@@ -112,6 +112,21 @@ export class SimulatorClient {
     }
   }
 
+  /** Demo only: re-seeds the source system. Works regardless of the connector switch. */
+  async resetDemo(scenario: 'S1' | 'S2'): Promise<void> {
+    const call = async (path: string, body: unknown) => {
+      const response = await fetch(`${this.baseUrl}${path}`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${this.serviceToken}`, 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!response.ok) throw new SourceUnavailableError(`Source returned ${response.status}`);
+    };
+    await call('/legacy/admin/outage', { enabled: false });
+    await call('/legacy/admin/reset', { scenario, confirm: 'RESET' });
+  }
+
   inventoryFeed(sinceSeq: number): Promise<FeedPage<SourceInventory>> {
     return this.request('GET', `/legacy/inventory?since_seq=${sinceSeq}`);
   }

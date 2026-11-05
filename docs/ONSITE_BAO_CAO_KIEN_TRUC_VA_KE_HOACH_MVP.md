@@ -1348,6 +1348,8 @@ Các điều chỉnh sau đã được duyệt hoặc phát sinh khi hiện th�
 | 8.4 (giữ hàng) | Thêm `POST /legacy/reservations/{id}/extend`. Sau khi đơn `APPROVED`, Local tự gia hạn đến khi xuất, nhả hoặc hủy. Trước khi duyệt xong, hạn 30 phút giữ nguyên. |
 | 9.4 (AI) | Dòng chờ duyệt được tạo trước, làm claim nguyên tử có lease, rồi mới gọi LLM ngoài transaction. Mỗi giá trị lạ riêng biệt có một dòng chờ, nên một sản phẩm có thể cần nhiều lần duyệt. |
 | 12.1 (API) | Thêm `GET /orders`, `GET /sites`, `GET /orders/{id}/confirmation` để phục vụ giao diện Phase 2. |
+| 4.2 (cổng) | OnSite Central chạy ở cổng **6001** thay vì 6000: cổng 6000 nằm trong danh sách cổng bị chặn của trình duyệt và `fetch`, nên không thể dùng được. Chi tiết Phase 2 ở `docs/PHASE2_COMPLETION_REPORT.md`. |
+| 12.1 (API, Phase 2) | Thêm `GET /system/status`, `GET /staff/normalization-reviews/stats`, `POST /admin/demo/reset` (chỉ admin, cần xác nhận, mặc định tắt). |
 
 ---
 

@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { createServer, type IncomingHttpHeaders, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { AnthropicLlmProvider, callLlm, createLlmProvider, MockLlmProvider, type SuggestInput } from '../../src/connectors/llm.js';
+import { resolveLlmApiKey } from '../../src/config.js';
+import { AnthropicLlmProvider, callLlm, createLlmProvider, GeminiLlmProvider, MockLlmProvider, type SuggestInput } from '../../src/connectors/llm.js';
 import { runEvaluation, summarize, type LabelledExample } from '../../src/modules/normalization/eval.js';
 import { allowedValues, isValidNormalizedValue } from '../../src/modules/normalization/values.js';
 
@@ -32,6 +33,111 @@ describe('the labelled test set', () => {
     const summary = summarize(await runEvaluation(broken, examples.slice(0, 5), 100));
     expect(summary.unavailable_rate).toBe(1);
     expect(summary.accuracy).toBe(0);
+  });
+});
+
+describe('Gemini provider (against a local stand-in)', () => {
+  let server: Server;
+  let baseUrl: string;
+  let lastUrl = '';
+  let lastHeaders: IncomingHttpHeaders = {};
+  let lastBody: Record<string, any> = {};
+  let reply: { status: number; body: unknown } = { status: 200, body: {} };
+  let calls = 0;
+  let failFirst = 0;
+  const answer = (text: string) => ({ candidates: [{ content: { role: 'model', parts: [{ text }] }, finishReason: 'STOP' }] });
+  const input: SuggestInput = {
+    field: 'unit',
+    rawValue: 'säck',
+    description: 'Byggcement Std 25kg säck',
+    allowedValues: allowedValues('unit'),
+  };
+
+  beforeAll(async () => {
+    server = createServer((request, response) => {
+      const chunks: Buffer[] = [];
+      request.on('data', (chunk: Buffer) => chunks.push(chunk));
+      request.on('end', () => {
+        lastUrl = request.url ?? '';
+        lastHeaders = request.headers;
+        lastBody = JSON.parse(Buffer.concat(chunks).toString());
+        calls += 1;
+        const current = calls <= failFirst ? { status: 503, body: { error: { code: 503, message: 'busy', status: 'UNAVAILABLE' } } } : reply;
+        response.statusCode = current.status;
+        response.setHeader('content-type', 'application/json');
+        response.end(JSON.stringify(current.body));
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  });
+  afterAll(async () => {
+    await new Promise((resolve) => server.close(resolve));
+  });
+  beforeEach(() => {
+    calls = 0;
+    failFirst = 0;
+    reply = { status: 200, body: answer(JSON.stringify({ suggested_value: 'bag', confidence: 0.95, reason: 'säck means bag', evidence: null })) };
+  });
+
+  it('asks for schema-bound JSON, and sends only the value, field, description and allowed values', async () => {
+    const provider = new GeminiLlmProvider('test-key', undefined, baseUrl);
+    const result = await callLlm(provider, input, 5000);
+    expect(result).toMatchObject({ kind: 'ok', suggestion: 'bag', confidence: 0.95 });
+    expect(lastUrl).toContain('gemini-flash-lite-latest:generateContent');
+    // The key travels in a header, never in the URL.
+    expect(lastHeaders['x-goog-api-key']).toBe('test-key');
+    expect(lastUrl).not.toContain('test-key');
+    expect(lastBody.generationConfig.responseMimeType).toBe('application/json');
+    expect(lastBody.generationConfig.responseSchema.properties.suggested_value.enum).toContain('bag');
+    const sent = JSON.parse(lastBody.contents[0].parts[0].text);
+    expect(Object.keys(sent).sort()).toEqual(['allowed_values', 'field', 'product_description', 'raw_value']);
+  });
+
+  it('retries once on a temporary provider error, and gives up after that', async () => {
+    const provider = new GeminiLlmProvider('k', undefined, baseUrl);
+    failFirst = 1;
+    expect(await callLlm(provider, input, 5000)).toMatchObject({ kind: 'ok', suggestion: 'bag' });
+    expect(calls).toBe(2);
+    calls = 0;
+    failFirst = 2;
+    expect(await callLlm(provider, input, 5000)).toEqual({ kind: 'unavailable' });
+    expect(calls).toBe(2);
+  });
+
+  it('does not retry a permanent error', async () => {
+    const provider = new GeminiLlmProvider('k', undefined, baseUrl);
+    reply = { status: 400, body: { error: { code: 400, message: 'bad', status: 'INVALID_ARGUMENT' } } };
+    expect(await callLlm(provider, input, 5000)).toEqual({ kind: 'unavailable' });
+    expect(calls).toBe(1);
+  });
+
+  it('uses LLM_MODEL, and reads the key from GEMINI_API_KEY', () => {
+    const provider = createLlmProvider({ provider: 'gemini', apiKey: 'k', model: 'gemini-3.5-flash', timeoutMs: 1, claimLeaseSeconds: 1, maxAttempts: 1 });
+    expect(provider.modelVersion).toBe('gemini-3.5-flash');
+    const saved = process.env.GEMINI_API_KEY;
+    process.env.GEMINI_API_KEY = 'from-env';
+    expect(resolveLlmApiKey('gemini')).toBe('from-env');
+    if (saved === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = saved;
+  });
+
+  it('requires an API key', () => {
+    expect(() =>
+      createLlmProvider({ provider: 'gemini', apiKey: undefined, model: undefined, timeoutMs: 1, claimLeaseSeconds: 1, maxAttempts: 1 }),
+    ).toThrow(/GEMINI_API_KEY/);
+  });
+
+  it('turns an API error, invalid output and a value outside the list into a manual review, reporting only the status', async () => {
+    const provider = new GeminiLlmProvider('k', undefined, baseUrl);
+    reply = { status: 404, body: { error: { code: 404, message: 'gone', status: 'NOT_FOUND' } } };
+    const failures: unknown[] = [];
+    expect(await callLlm(provider, input, 5000, (failure) => failures.push(failure))).toEqual({ kind: 'unavailable' });
+    expect(failures).toEqual([{ status: 404, name: expect.any(String) }]);
+    reply = { status: 200, body: answer('not json') };
+    expect(await callLlm(provider, input, 5000)).toEqual({ kind: 'invalid' });
+    reply = { status: 200, body: answer('{"suggested_value":"banana","confidence":1,"reason":"x"}') };
+    expect(await callLlm(provider, input, 5000)).toEqual({ kind: 'invalid' });
   });
 });
 

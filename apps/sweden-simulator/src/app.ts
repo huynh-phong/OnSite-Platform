@@ -1,13 +1,26 @@
 import { randomUUID } from 'node:crypto';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import Fastify, { type FastifyInstance } from 'fastify';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import type { Db } from './db.js';
 import { registerErrorHandling } from './errors.js';
 import { registerHealthRoutes } from './routes/health.js';
+import { ConnectionTracker, registerGateway } from './routes/gateway.js';
 import { registerLegacyRoutes } from './routes/legacy.js';
+import { registerStaticUi } from './static-ui.js';
 
-export async function buildApp(pool: Db, options: { serviceToken: string }): Promise<FastifyInstance> {
+const defaultUiDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../web/dist/legacy');
+
+export interface AppOptions {
+  serviceToken: string;
+  dashboardPassword?: string | undefined;
+  localSeUrl?: string | undefined;
+  uiDir?: string | undefined;
+}
+
+export async function buildApp(pool: Db, options: AppOptions): Promise<FastifyInstance> {
   const app = Fastify({
     logger: {
       level: process.env.LOG_LEVEL ?? 'info',
@@ -33,6 +46,20 @@ export async function buildApp(pool: Db, options: { serviceToken: string }): Pro
   await app.register(swaggerUi, { routePrefix: '/docs' });
 
   registerHealthRoutes(app, pool);
-  registerLegacyRoutes(app, pool, options.serviceToken);
+  const tracker = new ConnectionTracker();
+  const internalKey = randomUUID();
+  registerLegacyRoutes(app, pool, {
+    serviceToken: options.serviceToken,
+    onFeedPoll: () => tracker.notePoll(),
+    internalKey,
+  });
+  registerGateway(app, pool, {
+    serviceToken: options.serviceToken,
+    dashboardPassword: options.dashboardPassword,
+    localSeUrl: options.localSeUrl,
+    tracker,
+    internalKey,
+  });
+  registerStaticUi(app, options.uiDir ?? process.env.SIM_UI_DIR ?? defaultUiDir, 'legacy.html');
   return app;
 }

@@ -40,18 +40,18 @@ describe('Checkpoint 6: hardening', () => {
       const patterns: [string, RegExp][] = [
         ['Anthropic key', /sk-ant-[a-zA-Z0-9_-]{20,}/],
         ['OpenAI-style key', /\bsk-[a-zA-Z0-9]{32,}\b/],
-        ['Google key', /AIza[0-9A-Za-z_-]{35}/],
+        ['Google key', /AIza[0-9A-Za-z_-]{30,}/],
         ['AWS key', /AKIA[0-9A-Z]{16}/],
         ['private key', /-----BEGIN [A-Z ]*PRIVATE KEY-----/],
         ['JWT', /eyJ[a-zA-Z0-9_-]{20,}\.eyJ[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}/],
         ['password in a URL', /postgres:\/\/[^:\s]+:(?!REPLACE_ME|\$\{)[^@\s$]{4,}@/],
-        ['assigned secret', /^(SE_JWT_SECRET|SE_DATA_KEY|SIMULATOR_SERVICE_TOKEN|DEMO_PASSWORD|SE_DB_PASSWORD|SIM_DB_PASSWORD|LLM_API_KEY)=(?!REPLACE_ME$|$).+/m],
+        ['assigned secret', /^(SE_JWT_SECRET|SE_DATA_KEY|SIMULATOR_SERVICE_TOKEN|DEMO_PASSWORD|SE_DB_PASSWORD|SIM_DB_PASSWORD|LLM_API_KEY|GEMINI_API_KEY|CENTRAL_DB_PASSWORD|SE_CENTRAL_TOKEN|CENTRAL_ADMIN_PASSWORD|SIM_DASHBOARD_PASSWORD)=(?!REPLACE_ME$|$).+/m],
       ];
       // The real values, when a local .env exists: none may appear anywhere.
       const envPath = path.join(repoRoot, '.env');
       const secretValues = readFileSync(envPath, 'utf8')
         .split(/\r?\n/)
-        .filter((line) => /^(SE_JWT_SECRET|SE_DATA_KEY|SIMULATOR_SERVICE_TOKEN|DEMO_PASSWORD|SE_DB_PASSWORD|SIM_DB_PASSWORD|LLM_API_KEY)=.+/.test(line))
+        .filter((line) => /^(SE_JWT_SECRET|SE_DATA_KEY|SIMULATOR_SERVICE_TOKEN|DEMO_PASSWORD|SE_DB_PASSWORD|SIM_DB_PASSWORD|LLM_API_KEY|GEMINI_API_KEY|CENTRAL_DB_PASSWORD|SE_CENTRAL_TOKEN|CENTRAL_ADMIN_PASSWORD|SIM_DASHBOARD_PASSWORD)=.+/.test(line))
         .map((line) => line.slice(line.indexOf('=') + 1));
 
       const findings: string[] = [];
@@ -109,6 +109,9 @@ describe('Checkpoint 6: hardening', () => {
       ['get', '/api/v1/metrics'],
       ['post', '/api/v1/admin/connector/enable'],
       ['post', '/api/v1/admin/connector/disable'],
+      ['get', '/api/v1/system/status'],
+      ['get', '/api/v1/staff/normalization-reviews/stats'],
+      ['post', '/api/v1/admin/demo/reset'],
     ];
 
     it('documents every endpoint of section 12.1 in Swagger, with schemas and security', async () => {

@@ -23,6 +23,7 @@ import {
   releaseReservation,
   sweepExpiredReservations,
 } from '../services/reservations.js';
+import { seedSimulator } from '../services/seed.js';
 import { isOutageEnabled, setOutage } from '../services/settings.js';
 
 const OUTAGE_PATH = '/legacy/admin/outage';
@@ -91,14 +92,25 @@ function tokenMatches(header: string | undefined, token: string): boolean {
   return presented.length === expected.length && timingSafeEqual(presented, expected);
 }
 
-export function registerLegacyRoutes(app: FastifyInstance, pool: Db, serviceToken: string): void {
+export interface LegacyRouteOptions {
+  serviceToken: string;
+  /** Called for each read of the inventory feed from outside: that is what "connected" means here. */
+  onFeedPoll?: () => void;
+  /** The dashboard is the legacy system's own screen, so a simulated API outage does not blank it. */
+  internalKey?: string;
+}
+
+export function registerLegacyRoutes(app: FastifyInstance, pool: Db, options: LegacyRouteOptions): void {
+  const { serviceToken } = options;
   app.addHook('onRequest', async (request) => {
     const path = request.url.split('?')[0]!;
     if (!path.startsWith('/legacy/')) return;
     if (!tokenMatches(request.headers.authorization, serviceToken)) {
       throw new SimError(401, 'UNAUTHORIZED', 'A valid service token is required');
     }
-    if (path !== OUTAGE_PATH && (await isOutageEnabled(pool))) {
+    const internal = Boolean(options.internalKey) && request.headers['x-sim-internal'] === options.internalKey;
+    if (path === '/legacy/inventory' && !internal) options.onFeedPoll?.();
+    if (!internal && path !== OUTAGE_PATH && (await isOutageEnabled(pool))) {
       throw new SimError(503, 'SOURCE_UNAVAILABLE', 'Simulated source outage');
     }
   });
@@ -281,6 +293,25 @@ export function registerLegacyRoutes(app: FastifyInstance, pool: Db, serviceToke
       },
     },
     async (request) => ({ enabled: await setOutage(pool, request.body.enabled) }),
+  );
+
+  app.post<{ Body: { scenario: 'S1' | 'S2'; confirm: string } }>(
+    '/legacy/admin/reset',
+    {
+      schema: {
+        tags: ['admin'],
+        security,
+        summary: 'DEMO ONLY: replace all simulator data with a seeded scenario. Requires confirm="RESET".',
+        body: Type.Object({
+          scenario: Type.Union([Type.Literal('S1'), Type.Literal('S2')]),
+          confirm: Type.String(),
+        }),
+      },
+    },
+    async (request) => {
+      if (request.body.confirm !== 'RESET') throw new SimError(400, 'CONFIRMATION_REQUIRED', 'Send confirm="RESET"');
+      return seedSimulator(pool, request.body.scenario);
+    },
   );
 
   app.post(
