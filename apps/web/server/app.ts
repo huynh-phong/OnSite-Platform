@@ -3,7 +3,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { Readable } from 'node:stream';
 import type { ReadableStream as NodeReadableStream } from 'node:stream/web';
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, LogController } from 'fastify';
 
 const TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -35,7 +35,7 @@ export async function buildWebServer(options: WebServerOptions): Promise<Fastify
       serializers: { req: (request) => ({ method: request.method, url: request.url.split('?')[0] }) },
     },
     genReqId: () => randomUUID(),
-    requestIdLogLabel: 'request_id',
+    logController: new LogController({ requestIdLogLabel: 'request_id' }),
     bodyLimit: 1_000_000,
   });
 

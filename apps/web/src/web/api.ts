@@ -139,7 +139,7 @@ export interface OrderDetail extends OrderSummary {
   approved_at: string | null;
   delivered_at: string | null;
   otif: boolean | null;
-  items: { sku_id: string; quantity: number; unit: string; unit_price_sek: number }[];
+  items: { sku_id: string; quantity: number; requested_quantity?: number | null; unit: string; unit_price_sek: number }[];
   allocations: { node_id: string; sku_id: string; quantity: number; reason: string }[];
   shipments: Shipment[];
   events: { type: string; version: number; occurred_at: string; actor?: string; data?: Record<string, unknown> }[];
@@ -238,7 +238,15 @@ export interface Metrics {
     stale_reason: string | null;
     last_successful_sync_at: string | null;
     verified_age_s: number | null;
-    nodes: { node_id: string; rows: number; newest_source_change_age_s: number; inventory_freshness_s: number | null }[];
+    heartbeat_timeout_s?: number;
+    nodes: {
+      node_id: string;
+      rows: number;
+      newest_source_change_age_s: number;
+      inventory_freshness_s: number | null;
+      heartbeat_age_s?: number | null;
+      offline?: boolean;
+    }[];
   };
   outbox: { outbox_pending: number; outbox_delivered: number; outbox_dead: number; outbox_oldest_age_s: number | null };
   reservations: { reservation_conflicts: number; renewals_total: number; renewal_failures_total: number; lost_total: number };

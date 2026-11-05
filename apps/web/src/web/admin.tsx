@@ -92,12 +92,20 @@ export function AdminHome() {
             <div className="table-wrap">
               <table>
                 <thead>
-                  <tr><th>Node</th><th className="num">Stock rows</th><th className="num">Last stock change at source</th></tr>
+                  <tr><th>Node</th><th>Store server</th><th className="num">Stock rows</th><th className="num">Last stock change at source</th></tr>
                 </thead>
                 <tbody>
                   {m.inventory.nodes.map((node) => (
                     <tr key={node.node_id}>
                       <td>{node.node_id}</td>
+                      <td>
+                        {node.offline ? (
+                          <Badge tone="danger">Offline: isolated</Badge>
+                        ) : (
+                          <Badge tone="ok">Online</Badge>
+                        )}{' '}
+                        {node.offline && <span className="small muted">silent for {formatAge(node.heartbeat_age_s)}</span>}
+                      </td>
                       <td className="num">{node.rows}</td>
                       <td className="num">{formatAge(node.newest_source_change_age_s)} ago</td>
                     </tr>
@@ -105,7 +113,11 @@ export function AdminHome() {
                 </tbody>
               </table>
             </div>
-            <div className="card-body small muted">A node with no recent change is not stale: its stock is simply unchanged, and the feed confirms that.</div>
+            <div className="card-body small muted">
+              A node with no recent change is not stale: its stock is simply unchanged, and the feed confirms that. A node whose
+              store server has not reported for over {formatAge(m.inventory.heartbeat_timeout_s ?? 300)} is isolated: no new orders
+              are routed to it, and parts still waiting for its approval move to the next best node.
+            </div>
           </Card>
         </>
       )}

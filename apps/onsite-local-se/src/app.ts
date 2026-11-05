@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, LogController } from 'fastify';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import type { Config } from './config.js';
@@ -10,6 +10,7 @@ import { registerAuditHook } from './modules/audit/audit.hook.js';
 import { registerAuthRoutes } from './modules/auth/auth.routes.js';
 import { AuthService } from './modules/auth/auth.service.js';
 import { registerCatalogRoutes } from './modules/catalog/catalog.routes.js';
+import { registerIntakeRoutes } from './modules/intake/intake.routes.js';
 import { registerAdminRoutes, registerHealthRoutes } from './modules/metrics/health.routes.js';
 import { registerNormalizationRoutes } from './modules/normalization/normalization.routes.js';
 import { registerStreamRoutes } from './modules/notifications/stream.routes.js';
@@ -32,7 +33,7 @@ export async function buildApp(config: Config, pool: Db, options: ContainerOptio
       },
     },
     genReqId: () => randomUUID(),
-    requestIdLogLabel: 'request_id',
+    logController: new LogController({ requestIdLogLabel: 'request_id' }),
   });
 
   const container = buildContainer(config, pool, app.log, options);
@@ -73,6 +74,7 @@ export async function buildApp(config: Config, pool: Db, options: ContainerOptio
   registerAuthRoutes(app, new AuthService(pool, config));
   registerCatalogRoutes(app, auth, container.catalog);
   registerOrderRoutes(app, auth, container.orders, container.documents);
+  registerIntakeRoutes(app, auth, container.intake);
   registerTaskRoutes(app, auth, container.tasks, container.documents);
   registerNormalizationRoutes(app, auth, container.normalization);
   registerStreamRoutes(app, auth, container.hub);

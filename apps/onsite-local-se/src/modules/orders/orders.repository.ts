@@ -36,6 +36,8 @@ export interface Item {
   quantity: number;
   unit: string;
   unit_price: string;
+  /** Set when the customer accepted less than this; quantity is then what they accepted. */
+  requested_quantity: number | null;
 }
 
 export interface Allocation {
@@ -135,6 +137,15 @@ export async function insertItem(
     [item.order_id, item.sku_id, item.quantity, item.unit, item.unit_price],
   );
   return rows[0]!;
+}
+
+/** Cuts a line to what the customer accepted, keeping the first quantity asked for. Never raises it. */
+export async function reduceItemQuantity(client: pg.PoolClient, itemId: string, quantity: number): Promise<void> {
+  await client.query(
+    `UPDATE order_items SET requested_quantity = COALESCE(requested_quantity, quantity), quantity = $2
+      WHERE item_id = $1 AND quantity > $2`,
+    [itemId, quantity],
+  );
 }
 
 export async function listItems(db: Queryable, orderId: string): Promise<Item[]> {
@@ -461,6 +472,7 @@ export async function transitionTask(
   countryCode: string,
   patch: Partial<Task> = {},
   data: Record<string, unknown> = {},
+  publicData: Record<string, unknown> = {},
 ): Promise<{ order: Order; task: Task }> {
   assertTaskTransition(task.status, to);
   const merged: Partial<Task> = { ...patch, status: to };
@@ -481,7 +493,7 @@ export async function transitionTask(
       type: `task.${to.toLowerCase()}`,
       actor,
       data: { task_id: task.task_id, node_id: task.node_id, from: task.status, ...data },
-      publicData: { node_id: task.node_id, task_status: to },
+      publicData: { node_id: task.node_id, task_status: to, ...publicData },
     },
     countryCode,
   );

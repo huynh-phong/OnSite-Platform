@@ -3,7 +3,7 @@ import { formatSek, formatTime } from '../shared/format';
 import { DashboardError, sessionFetch } from '../shared/http';
 import { Alert, Badge, Card, Empty, Kpi, Loading, PageHead, type Tone } from '../shared/ui';
 
-interface Store { store_id: string; name: string; type: 'STORE' | 'HUB'; status: string }
+interface Store { store_id: string; name: string; type: 'STORE' | 'HUB'; status: string; link_up?: boolean; last_heartbeat_at?: string }
 interface StockRow { node_id: string; sku_id: string; on_hand: number; reserved: number; source_unit: string; version: number; updated_at: string }
 interface Product { sku_id: string; name: string; source_unit: string; source_category: string; source_description: string; unit_price_sek: number; updated_at: string }
 interface LedgerRow { entry_id: number; node_id: string; sku_id: string; type: string; qty: number; reference: string | null; occurred_at: string }
@@ -445,6 +445,32 @@ function Tools({ stores, products, outage, connection, reload }: { stores: Store
             <div className="row">
               <button type="button" className="btn danger" disabled={outage} onClick={() => void run(() => sessionFetch('/ui-api/outage', { method: 'POST', body: { enabled: true } }), 'Outage is on.')}>Start outage</button>
               <button type="button" className="btn primary" disabled={!outage} onClick={() => void run(() => sessionFetch('/ui-api/outage', { method: 'POST', body: { enabled: false } }), 'Outage is off.')}>Recover</button>
+            </div>
+          </div>
+        </Card>
+        <Card title="Store server link">
+          <div className="card-body stack small">
+            <p>Each store's own server reports to this system. Take one link down to simulate a network drop at that store: its heartbeat stops, and stock sold at its counter no longer reaches the central records. OnSite should isolate the store once it has been silent too long, and move work waiting for its approval elsewhere.</p>
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>Location</th><th>Link</th><th>Last heartbeat</th><th /></tr></thead>
+                <tbody>
+                  {stores.map((store) => (
+                    <tr key={store.store_id}>
+                      <td>{store.name}</td>
+                      <td>{store.link_up === false ? <Badge tone="danger">Down</Badge> : <Badge tone="ok">Up</Badge>}</td>
+                      <td className="nowrap">{store.link_up === false ? formatTime(store.last_heartbeat_at) : 'Now'}</td>
+                      <td>
+                        {store.link_up === false ? (
+                          <button type="button" className="btn primary" onClick={() => void run(() => sessionFetch(`/ui-api/stores/${store.store_id}/link`, { method: 'POST', body: { up: true } }), `Link restored at ${store.name}.`)}>Restore</button>
+                        ) : (
+                          <button type="button" className="btn danger" onClick={() => void run(() => sessionFetch(`/ui-api/stores/${store.store_id}/link`, { method: 'POST', body: { up: false } }), `Link down at ${store.name}. Its heartbeat has stopped.`)}>Drop link</button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </Card>

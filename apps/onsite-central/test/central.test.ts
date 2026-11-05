@@ -254,6 +254,51 @@ describe('OnSite Central (real PostgreSQL)', () => {
       expect((await get('/dashboard')).json().kpis.simulated_otif_rate).toBeNull();
     });
 
+    it('measures the three Round 1 pilot KPIs from events, counting each once', async () => {
+      const task = (order: string, version: number, type: string, node: string) =>
+        event(
+          { event_type: `task.${type}.v1`, aggregate_id: order, aggregate_version: version },
+          { status: 'AWAITING_APPROVAL', node_id: node, task_status: type.toUpperCase() },
+        );
+      const warning = event(
+        { event_type: 'order.at_risk.v1', aggregate_id: 'SE-ORD-000001', aggregate_version: 5 },
+        { at_risk: true },
+      );
+      await send(warning);
+      await send(warning); // redelivered
+      // A second warning for the same order, after it cleared and came back, is still one warned order.
+      await send(event({ event_type: 'order.at_risk.v1', aggregate_id: 'SE-ORD-000001', aggregate_version: 9 }, { at_risk: true }));
+      await send(task('SE-ORD-000001', 6, 'approved', 'SE-STORE-B'));
+      await send(task('SE-ORD-000001', 7, 'approved', 'SE-HUB-01'));
+      await send(task('SE-ORD-000001', 8, 'delivered', 'SE-STORE-B'));
+      await send(task('SE-ORD-000002', 3, 'rejected', 'SE-HUB-01'));
+      // Store B approved, the hub never answered: only the hub missed its deadline.
+      await send(task('SE-ORD-000003', 3, 'approved', 'SE-STORE-B'));
+      await send(task('SE-ORD-000003', 4, 'expired', 'SE-HUB-01'));
+      await send(task('SE-ORD-000003', 5, 'expired', 'SE-STORE-B'));
+      // Moved off an offline node by the circuit breaker: nobody decided it.
+      await send(
+        event(
+          { event_type: 'task.rejected.v1', aggregate_id: 'SE-ORD-000004', aggregate_version: 3 },
+          { status: 'AWAITING_APPROVAL', node_id: 'SE-STORE-C', task_status: 'REJECTED', reason: 'NODE_OFFLINE' },
+        ),
+      );
+
+      expect((await get('/dashboard')).json().pilot_kpis).toEqual({
+        simulated_otif_rate: null,
+        delay_warnings_sent: 1,
+        tasks_handled_in_onsite: 4,
+        tasks_missed_deadline: 1,
+        adoption_rate: 0.8,
+        deliveries_confirmed_digitally: 1,
+      });
+    });
+
+    it('reports no adoption rate before any task was due', async () => {
+      await send(event());
+      expect((await get('/dashboard')).json().pilot_kpis).toMatchObject({ adoption_rate: null, delay_warnings_sent: 0 });
+    });
+
     it('measures lag as applied time minus occurred time', async () => {
       const occurred = new Date(Date.now() - 5000).toISOString();
       await send(event({ occurred_at: occurred }));

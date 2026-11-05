@@ -81,6 +81,11 @@ export function loadConfig() {
       interruptedAfterSeconds: 120,
     },
     routing: { maxSourcesPerLine: 3 },
+    nodes: {
+      /** Round 1 circuit breaker: a node silent for longer than this is isolated and its pending work rerouted. */
+      heartbeatTimeoutSeconds: numberFrom('NODE_HEARTBEAT_TIMEOUT_SECONDS', 300),
+      checkSeconds: numberFrom('NODE_HEARTBEAT_CHECK_SECONDS', 10),
+    },
     eta: {
       timeZone: 'Europe/Stockholm',
       dispatchSlots: ['07:00', '09:00', '11:00', '13:00', '15:00'],

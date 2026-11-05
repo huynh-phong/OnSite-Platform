@@ -11,7 +11,7 @@ async function createProduct(legacy: Page, sku: string, unit: string, descriptio
 }
 
 test.describe('Scenario C: S2 shortage at order time', () => {
-  test('explains the shortage of 10, commits nothing, and offers no fake acceptance', async ({ as }) => {
+  test('explains the shortage of 10, commits nothing until the customer accepts the 90 available', async ({ as }) => {
     await resetDemo('S2');
     const buyer = await as('buyer.nordbygg');
     const orderId = await placeOrder(buyer, 100);
@@ -20,8 +20,6 @@ test.describe('Scenario C: S2 shortage at order time', () => {
     await expect(buyer.getByText(/detected as you ordered/)).toBeVisible();
     const explanation = buyer.getByRole('alert').filter({ hasText: 'This order was not confirmed' });
     await expect(explanation).toContainText('At most 90 can be supplied now, which is 10 short');
-    await expect(explanation).toContainText('place a new order');
-    await expect(buyer.getByRole('button', { name: /accept/i })).toHaveCount(0);
     await expect(buyer.getByText('Waiting for each shipping node')).toHaveCount(0);
 
     expect(await sql('SIM', `SELECT 1 FROM reservations WHERE status = 'ACTIVE'`)).toEqual([]);
@@ -29,10 +27,13 @@ test.describe('Scenario C: S2 shortage at order time', () => {
     const stock = await sql('SIM', `SELECT coalesce(sum(reserved), 0)::int AS reserved FROM inventory WHERE sku_id = 'SE-CEM-025'`);
     expect(stock[0]!.reserved).toBe(0);
 
-    // A smaller order within what is usable then goes through.
-    const next = await placeOrder(buyer, 90);
-    expect(next).not.toBe(orderId);
+    // Accepting the 90 checks stock again, reserves it, and keeps what was first asked for.
+    await explanation.getByRole('button', { name: 'Accept the 90 available' }).click();
     await expect(buyer.getByRole('img', { name: '54 from SE-STORE-B, 36 from SE-HUB-01' })).toBeVisible();
+    await expect(buyer.getByText('You accepted this instead of 100')).toBeVisible();
+    await expect(buyer.getByText('This order was not confirmed')).toHaveCount(0);
+    const reserved = await sql('SIM', `SELECT coalesce(sum(reserved), 0)::int AS reserved FROM inventory WHERE sku_id = 'SE-CEM-025'`);
+    expect(reserved[0]!.reserved).toBe(90);
   });
 });
 

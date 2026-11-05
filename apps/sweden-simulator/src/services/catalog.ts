@@ -28,11 +28,26 @@ const PRODUCT_COLUMNS = `sku_id, name, source_unit, source_category, source_desc
   unit_price_sek::float8 AS unit_price_sek, version, updated_at`;
 export const INVENTORY_COLUMNS = 'node_id, sku_id, on_hand, reserved, source_unit, version, updated_at';
 
+/** last_heartbeat_at is when the store's own server last reported in: now, unless its link is down. */
 export async function listStores(pool: Db) {
   const { rows } = await pool.query(
-    'SELECT store_id, name, type, lat, lng, prep_minutes, status FROM stores ORDER BY store_id',
+    `SELECT store_id, name, type, lat, lng, prep_minutes, status, link_down_since IS NULL AS link_up,
+            COALESCE(link_down_since, now()) AS last_heartbeat_at
+       FROM stores ORDER BY store_id`,
   );
   return rows;
+}
+
+/** Simulates a store server losing, or regaining, its connection. Its stock records stay as they were. */
+export async function setStoreLink(pool: Db, storeId: string, up: boolean) {
+  const { rows } = await pool.query(
+    `UPDATE stores SET link_down_since = CASE WHEN $2 THEN NULL ELSE COALESCE(link_down_since, now()) END
+      WHERE store_id = $1
+      RETURNING store_id, link_down_since IS NULL AS link_up, COALESCE(link_down_since, now()) AS last_heartbeat_at`,
+    [storeId, up],
+  );
+  if (!rows[0]) throw new SimError(404, 'STORE_NOT_FOUND', `Unknown store ${storeId}`);
+  return rows[0];
 }
 
 export function readProducts(pool: Db, sinceSeq: number, limit?: number) {

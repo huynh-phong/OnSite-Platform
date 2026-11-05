@@ -35,6 +35,8 @@ describe('state machines', () => {
     ['ALLOCATING', 'CANCELLED'],
     ['AWAITING_APPROVAL', 'CANCELLED'],
     ['NEEDS_REVIEW', 'CANCELLED'],
+    // The customer accepts what can be supplied now.
+    ['NEEDS_REVIEW', 'ALLOCATING'],
     ['NEEDS_REALLOCATION', 'CANCELLED'],
     // Extension approved for Issue 1, limited to admins by the order service.
     ['APPROVED', 'CANCELLED'],

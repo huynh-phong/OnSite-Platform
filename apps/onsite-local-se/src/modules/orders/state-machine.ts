@@ -30,7 +30,8 @@ export const ORDER_TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
   SUBMITTED: ['ALLOCATING', 'CANCELLED'],
   ALLOCATING: ['AWAITING_APPROVAL', 'NEEDS_REVIEW', 'CANCELLED'],
   AWAITING_APPROVAL: ['APPROVED', 'NEEDS_REALLOCATION', 'EXPIRED', 'CANCELLED'],
-  NEEDS_REVIEW: ['CANCELLED'],
+  // ALLOCATING only when the customer accepts the quantity that can be supplied now.
+  NEEDS_REVIEW: ['ALLOCATING', 'CANCELLED'],
   NEEDS_REALLOCATION: ['ALLOCATING', 'CANCELLED'],
   // Cancelling after approval is limited to admins by the order service.
   APPROVED: ['DISPATCHING', 'CANCELLED'],

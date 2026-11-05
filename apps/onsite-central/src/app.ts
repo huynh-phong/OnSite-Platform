@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import { Type } from '@sinclair/typebox';
-import Fastify, { type FastifyError, type FastifyInstance, type FastifyRequest } from 'fastify';
+import Fastify, { type FastifyError, type FastifyInstance, type FastifyRequest, LogController } from 'fastify';
 import type { Config } from './config.js';
 import type { Db } from './db.js';
 import { countriesStatus, dashboard, recentEvents } from './services/dashboard.js';
@@ -49,7 +49,7 @@ export async function buildApp(config: Config, pool: Db, options: { uiDir?: stri
       serializers: { req: (request) => ({ method: request.method, url: request.url.split('?')[0] }) },
     },
     genReqId: () => randomUUID(),
-    requestIdLogLabel: 'request_id',
+    logController: new LogController({ requestIdLogLabel: 'request_id' }),
   });
 
   app.addHook('onSend', async (request, reply) => {

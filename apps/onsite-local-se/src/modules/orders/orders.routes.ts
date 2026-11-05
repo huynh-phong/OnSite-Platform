@@ -32,6 +32,7 @@ const OrderView = Type.Object({
     Type.Object({
       sku_id: Type.String(),
       quantity: Type.Integer(),
+      requested_quantity: Nullable(Type.Integer({ description: 'What was first asked for, when the customer later accepted less' })),
       unit: Type.String(),
       unit_price_sek: Type.Number(),
     }),
@@ -194,6 +195,23 @@ export function registerOrderRoutes(
       },
     },
     async (request) => orders.cancel(request.params.id, principalOf(request), request.body.version),
+  );
+
+  app.post<{ Params: { id: string }; Body: { version: number } }>(
+    '/api/v1/orders/:id/accept-available',
+    {
+      onRequest: requireRole(auth, 'customer'),
+      schema: {
+        tags: ['orders'],
+        security: bearer,
+        summary:
+          'For an order that was short of stock: accept what can be supplied now. Lines are cut to what is available, the first quantity is kept, and the order is allocated again.',
+        params: IdParam,
+        body: Type.Object({ version: Type.Integer({ minimum: 1 }) }),
+        response: { 200: OrderView, ...errors(401, 403, 404, 409, 503) },
+      },
+    },
+    async (request) => orders.acceptAvailable(request.params.id, principalOf(request), request.body.version),
   );
 
   app.get<{ Params: { id: string } }>(

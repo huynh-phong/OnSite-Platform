@@ -10,7 +10,7 @@ import { sweepExpiredReservations } from '../../../sweden-simulator/src/services
 import { seedSimulator } from '../../../sweden-simulator/src/services/seed.js';
 import { buildApp } from '../../src/app.js';
 import { loadConfig, type Config } from '../../src/config.js';
-import { MockLlmProvider, type LlmProvider, type SuggestInput } from '../../src/connectors/llm.js';
+import { MockLlmProvider, type LlmProvider, type ParseOrderInput, type SuggestInput } from '../../src/connectors/llm.js';
 import { createPool, type Db } from '../../src/db.js';
 import { dropEverything, runMigrations } from '../../src/migrate.js';
 import { seedLocal } from '../../src/seed.js';
@@ -50,6 +50,7 @@ export class TestLlm implements LlmProvider {
   private readonly mock = new MockLlmProvider();
   mode: LlmMode = 'mock';
   calls: SuggestInput[] = [];
+  orderCalls: ParseOrderInput[] = [];
   /** When set, the provider waits for it before answering, to keep calls in flight. */
   gate: Promise<void> | undefined;
 
@@ -67,6 +68,23 @@ export class TestLlm implements LlmProvider {
         throw new Error('provider down');
       default:
         return this.mock.suggest(input);
+    }
+  }
+
+  async parseOrder(input: ParseOrderInput, signal: AbortSignal): Promise<unknown> {
+    this.orderCalls.push(input);
+    switch (this.mode) {
+      case 'invalid-json':
+        return 'this is not json';
+      case 'bad-schema':
+        // A confident, invented line: the quote is not in the message.
+        return { lines: [{ sku_id: 'SE-CEM-025', quantity: 500, unit_text: '', source_text: '500 bags of cement', confidence: 0.99, reason: 'x' }] };
+      case 'timeout':
+        return new Promise((_, reject) => signal.addEventListener('abort', () => reject(new Error('aborted'))));
+      case 'error':
+        throw new Error('provider down');
+      default:
+        return this.mock.parseOrder(input);
     }
   }
 }
@@ -149,6 +167,7 @@ export async function startHarness(): Promise<Harness> {
   const config = loadConfig();
   config.llm.timeoutMs = 200;
   const baseTtl = config.reservation.ttlMinutes;
+  const baseHeartbeatTimeout = config.nodes.heartbeatTimeoutSeconds;
 
   const pool = createPool(config.databaseUrl);
   await dropEverything(pool);
@@ -209,10 +228,12 @@ export async function startHarness(): Promise<Harness> {
     await seedLocal(pool, config);
     tokens.clear();
     llm.calls = [];
+    llm.orderCalls = [];
     llm.mode = 'mock';
     llm.gate = undefined;
     config.reservation.ttlMinutes = baseTtl;
     config.centralIngestUrl = undefined;
+    config.nodes.heartbeatTimeoutSeconds = baseHeartbeatTimeout;
     await app.container.inventory.loadConnectorState();
     if (options.sync !== false) {
       const result = await sync();

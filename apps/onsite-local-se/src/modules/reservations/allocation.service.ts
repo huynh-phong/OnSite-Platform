@@ -3,6 +3,7 @@ import type { FastifyBaseLogger } from 'fastify';
 import type { Config } from '../../config.js';
 import { SourceRejectedError, SourceUnavailableError, type SimulatorClient } from '../../connectors/simulator.js';
 import { withTransaction, type Db } from '../../db.js';
+import { AppError } from '../../errors.js';
 import { inTx } from '../../tx.js';
 import * as catalog from '../catalog/catalog.repository.js';
 import type { EtaService } from '../eta/eta.service.js';
@@ -91,6 +92,36 @@ export class AllocationService {
     await this.fail(orderId, 'RESERVATION_CONFLICT', actor, lastFulfillable);
   }
 
+  /**
+   * What could be supplied right now, line by line, by the same planner that allocates. Only for an order
+   * that holds nothing, so the answer is not offset by its own reservations. Promises nothing: stock can
+   * change before the order is allocated again.
+   */
+  async availableNow(orderId: string): Promise<{ item_id: string; sku_id: string; requested: number; available: number }[]> {
+    let freshness = await this.inventory.freshness();
+    if (!freshness.trusted) {
+      await this.inventory.sync();
+      freshness = await this.inventory.freshness();
+    }
+    if (!freshness.trusted) {
+      throw new AppError(503, 'SOURCE_UNAVAILABLE', 'Stock cannot be confirmed right now; try again shortly');
+    }
+    const order = (await orders.getOrder(this.pool, orderId))!;
+    const site = (await catalog.getSite(this.pool, order.site_id))!;
+    const items = await orders.listItems(this.pool, orderId);
+    const skuIds = [...new Set(items.map((item) => item.sku_id))];
+    const plan = await this.plan(orderId, order, site, await catalog.listStores(this.pool), items, skuIds);
+    return items.map((item) => {
+      const shortage = plan.shortages.find((line) => line.item_id === item.item_id);
+      return {
+        item_id: item.item_id,
+        sku_id: item.sku_id,
+        requested: item.quantity,
+        available: shortage ? shortage.fulfillable : item.quantity,
+      };
+    });
+  }
+
   private async heldQuantity(orderId: string): Promise<number> {
     const held = await orders.listAllocations(this.pool, orderId);
     return held.reduce((total, allocation) => total + allocation.quantity, 0);
@@ -120,6 +151,8 @@ export class AllocationService {
       }))
       .filter((line) => line.quantity > 0);
     const stock = await this.inventory.usableStock(skuIds);
+    // Circuit breaker: a node whose server has stopped reporting may have sold this stock at the counter.
+    const offline = new Set(await catalog.listOfflineNodeIds(this.pool, this.config.nodes.heartbeatTimeoutSeconds));
     return planAllocation({
       lines,
       site: { lat: site.lat, lng: site.lng },
@@ -132,7 +165,12 @@ export class AllocationService {
         prep_minutes: node.prep_minutes,
         active: node.status === 'ACTIVE',
       })),
-      inventory: stock.map((row) => ({ node_id: row.node_id, sku_id: row.sku_id, usable: row.usable, stale: false })),
+      inventory: stock.map((row) => ({
+        node_id: row.node_id,
+        sku_id: row.sku_id,
+        usable: row.usable,
+        stale: offline.has(row.node_id),
+      })),
       excludedNodes,
       eta: this.config.eta,
       maxSourcesPerLine: this.config.routing.maxSourcesPerLine,

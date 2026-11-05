@@ -63,7 +63,7 @@ export async function countriesStatus(pool: Db) {
 }
 
 export async function dashboard(pool: Db) {
-  const [byStatus, kpi, lag, settings, countries] = await Promise.all([
+  const [byStatus, kpi, lag, settings, countries, pilot] = await Promise.all([
     pool.query<{ status: string; count: number }>(
       'SELECT status, count(*)::int AS count FROM order_projection GROUP BY status ORDER BY status',
     ),
@@ -91,9 +91,28 @@ export async function dashboard(pool: Db) {
     ),
     pool.query<{ ingestion_offline: boolean; refused_while_down: string }>('SELECT * FROM central_settings'),
     countriesStatus(pool),
+    // Counted from the inbox, where the primary key has already removed redelivered events. A task that
+    // expires after its node approved it (a sibling node never answered) is not a missed deadline, and a
+    // task the circuit breaker moved off an offline node was decided by no one.
+    pool.query<{ delay_warnings: number; tasks_decided: number; tasks_missed: number; deliveries_confirmed: number }>(
+      `WITH decided AS (
+         SELECT DISTINCT origin_country, aggregate_id, payload->>'node_id' AS node_id
+           FROM inbox_events
+          WHERE event_type IN ('task.approved.v1', 'task.rejected.v1')
+            AND payload->>'reason' IS DISTINCT FROM 'NODE_OFFLINE')
+       SELECT count(DISTINCT (e.origin_country, e.aggregate_id)) FILTER (WHERE e.event_type = 'order.at_risk.v1')::int AS delay_warnings,
+              (SELECT count(*) FROM decided)::int AS tasks_decided,
+              count(*) FILTER (WHERE e.event_type = 'task.expired.v1' AND d.node_id IS NULL)::int AS tasks_missed,
+              count(*) FILTER (WHERE e.event_type = 'task.delivered.v1')::int AS deliveries_confirmed
+         FROM inbox_events e
+         LEFT JOIN decided d
+           ON d.origin_country = e.origin_country AND d.aggregate_id = e.aggregate_id AND d.node_id = e.payload->>'node_id'`,
+    ),
   ]);
   const totals = kpi.rows[0]!;
   const row = lag.rows[0]!;
+  const round1 = pilot.rows[0]!;
+  const tasksDue = round1.tasks_decided + round1.tasks_missed;
   return {
     data_is_simulated: true,
     ingestion_offline: settings.rows[0]?.ingestion_offline ?? false,
@@ -106,6 +125,15 @@ export async function dashboard(pool: Db) {
       early_shortage_detected: totals.early_shortage,
       delivered_orders: totals.delivered,
       simulated_otif_rate: totals.delivered === 0 ? null : totals.otif_true / totals.delivered,
+    },
+    // The three go/no-go KPIs of the Round 1 pilot, measured on simulated data.
+    pilot_kpis: {
+      simulated_otif_rate: totals.delivered === 0 ? null : totals.otif_true / totals.delivered,
+      delay_warnings_sent: round1.delay_warnings,
+      tasks_handled_in_onsite: round1.tasks_decided,
+      tasks_missed_deadline: round1.tasks_missed,
+      adoption_rate: tasksDue === 0 ? null : round1.tasks_decided / tasksDue,
+      deliveries_confirmed_digitally: round1.deliveries_confirmed,
     },
     central_sync_lag_ms: {
       latest: row.latest === null ? null : Number(row.latest),

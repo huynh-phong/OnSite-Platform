@@ -81,6 +81,41 @@ describe('Sweden simulator API (real PostgreSQL)', () => {
     expect((await app.inject({ url: '/docs/json' })).json().paths).toHaveProperty('/legacy/reservations/{id}/extend');
   });
 
+  describe('store server link', () => {
+    const storeB = async () =>
+      ((await app.inject({ url: '/legacy/stores', headers: auth })).json() as { store_id: string; link_up: boolean; last_heartbeat_at: string }[]).find(
+        (store) => store.store_id === B,
+      )!;
+
+    it('reports a current heartbeat while the link is up', async () => {
+      const store = await storeB();
+      expect(store.link_up).toBe(true);
+      expect(Date.now() - Date.parse(store.last_heartbeat_at)).toBeLessThan(5000);
+    });
+
+    it('freezes the heartbeat while the link is down, keeps stock usable, and recovers', async () => {
+      const down = await post(`/legacy/admin/stores/${B}/link`, { up: false });
+      expect(down.statusCode).toBe(200);
+      const since = down.json().last_heartbeat_at;
+      // Taking it down twice keeps the first time it went down.
+      expect((await post(`/legacy/admin/stores/${B}/link`, { up: false })).json().last_heartbeat_at).toBe(since);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(await storeB()).toMatchObject({ link_up: false, last_heartbeat_at: since });
+      // The ERP itself still answers for this node.
+      expect((await reserve(1, 'link-down')).statusCode).toBe(201);
+
+      expect((await post(`/legacy/admin/stores/${B}/link`, { up: true })).json().link_up).toBe(true);
+      expect(Date.parse((await storeB()).last_heartbeat_at)).toBeGreaterThan(Date.parse(since));
+    });
+
+    it('refuses an unknown store, and a reseed brings every link back', async () => {
+      expect((await post('/legacy/admin/stores/SE-NOPE/link', { up: false })).statusCode).toBe(404);
+      await post(`/legacy/admin/stores/${B}/link`, { up: false });
+      await seedSimulator(pool, 'S1');
+      expect((await storeB()).link_up).toBe(true);
+    });
+  });
+
   describe('change feed', () => {
     it('returns a snapshot at cursor 0 and only later changes after that', async () => {
       const snapshot = (await app.inject({ url: '/legacy/inventory?since_seq=0', headers: auth })).json();
