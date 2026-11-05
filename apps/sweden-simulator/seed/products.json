@@ -1,0 +1,30 @@
+{
+  "products": [
+    { "sku_id": "SE-CEM-025", "name": "Portland cement 25 kg bag", "source_unit": "bag", "source_category": "cement", "source_description": "Portland cement 25 kg bag", "unit_price_sek": 89 },
+    { "sku_id": "SE-CEM-040", "name": "Portland cement 40 kg bag", "source_unit": "bag", "source_category": "cement", "source_description": "Portland cement 40 kg bag", "unit_price_sek": 129 },
+    { "sku_id": "SE-CEM-RPD-025", "name": "Rapid-set cement 25 kg bag", "source_unit": "bag", "source_category": "cement", "source_description": "Rapid-set cement 25 kg bag", "unit_price_sek": 119 },
+    { "sku_id": "SE-CEM-MOR-025", "name": "Masonry mortar 25 kg bag", "source_unit": "bag", "source_category": "cement", "source_description": "Masonry mortar 25 kg bag", "unit_price_sek": 79 },
+    { "sku_id": "SE-CEM-CON-025", "name": "Concrete mix 25 kg bag", "source_unit": "bag", "source_category": "cement", "source_description": "Concrete mix 25 kg bag", "unit_price_sek": 69 },
+
+    { "sku_id": "SE-TIM-4595", "name": "Structural timber C24 45x95 mm", "source_unit": "m", "source_category": "timber", "source_description": "Structural timber C24 45x95 mm", "unit_price_sek": 32 },
+    { "sku_id": "SE-TIM-45145", "name": "Structural timber C24 45x145 mm", "source_unit": "m", "source_category": "timber", "source_description": "Structural timber C24 45x145 mm", "unit_price_sek": 49 },
+    { "sku_id": "SE-TIM-2295", "name": "Planed board 22x95 mm", "source_unit": "m", "source_category": "timber", "source_description": "Planed board 22x95 mm", "unit_price_sek": 21 },
+    { "sku_id": "SE-TIM-28120", "name": "Pressure-treated decking 28x120 mm", "source_unit": "m", "source_category": "timber", "source_description": "Pressure-treated decking 28x120 mm", "unit_price_sek": 38 },
+    { "sku_id": "SE-TIM-PLY-12", "name": "Construction plywood 12 mm", "source_unit": "sheet", "source_category": "timber", "source_description": "Construction plywood 12 mm", "unit_price_sek": 315 },
+
+    { "sku_id": "SE-GYP-13-2400", "name": "Gypsum board 13 mm 900x2400", "source_unit": "sheet", "source_category": "gypsum_board", "source_description": "Gypsum board 13 mm 900x2400", "unit_price_sek": 95 },
+    { "sku_id": "SE-GYP-13-2700", "name": "Gypsum board 13 mm 1200x2700", "source_unit": "sheet", "source_category": "gypsum_board", "source_description": "Gypsum board 13 mm 1200x2700", "unit_price_sek": 142 },
+    { "sku_id": "SE-GYP-WET-13", "name": "Wet room gypsum board 13 mm", "source_unit": "sheet", "source_category": "gypsum_board", "source_description": "Wet room gypsum board 13 mm", "unit_price_sek": 169 },
+    { "sku_id": "SE-GYP-CEIL-9", "name": "Ceiling gypsum board 9 mm", "source_unit": "sheet", "source_category": "gypsum_board", "source_description": "Ceiling gypsum board 9 mm", "unit_price_sek": 88 },
+    { "sku_id": "SE-GYP-FIRE-15", "name": "Fire-rated gypsum board 15 mm", "source_unit": "sheet", "source_category": "gypsum_board", "source_description": "Fire-rated gypsum board 15 mm", "unit_price_sek": 186 },
+
+    { "sku_id": "SE-INS-GW-70", "name": "Glass wool roll 70 mm", "source_unit": "roll", "source_category": "insulation", "source_description": "Glass wool roll 70 mm", "unit_price_sek": 349 },
+    { "sku_id": "SE-INS-RW-95", "name": "Stone wool slab 95 mm", "source_unit": "m2", "source_category": "insulation", "source_description": "Stone wool slab 95 mm", "unit_price_sek": 72 },
+    { "sku_id": "SE-INS-RW-145", "name": "Stone wool slab 145 mm", "source_unit": "m2", "source_category": "insulation", "source_description": "Stone wool slab 145 mm", "unit_price_sek": 104 },
+    { "sku_id": "SE-INS-EPS-100", "name": "EPS foam board 100 mm", "source_unit": "sheet", "source_category": "insulation", "source_description": "EPS foam board 100 mm", "unit_price_sek": 139 },
+    { "sku_id": "SE-INS-VB-25", "name": "Vapour barrier roll 25 m", "source_unit": "roll", "source_category": "insulation", "source_description": "Vapour barrier roll 25 m", "unit_price_sek": 459 }
+  ],
+  "ai_demo_products": [
+    { "sku_id": "SE-CEM-STD-025", "name": "Byggcement Std 25kg säck", "source_unit": "säck", "source_category": "cement", "source_description": "Byggcement Std 25kg säck", "unit_price_sek": 85 }
+  ]
+}

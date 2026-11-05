@@ -1,0 +1,16 @@
+{
+  "defaults": {
+    "on_hand": { "STORE": 80, "HUB": 300 },
+    "node_source_unit_overrides": { "SE-STORE-C": "st" }
+  },
+  "scenarios": {
+    "S1": {
+      "description": "Enough stock after splitting: 100 bags split 54 (Store B) + 46 (Hub).",
+      "on_hand": { "SE-CEM-025": { "SE-STORE-B": 60, "SE-HUB-01": 60 } }
+    },
+    "S2": {
+      "description": "Short after the safety buffer: 100 bags, fulfillable 90 (usable 54 + 36).",
+      "on_hand": { "SE-CEM-025": { "SE-STORE-B": 60, "SE-HUB-01": 40 } }
+    }
+  }
+}

@@ -1,0 +1,13 @@
+[
+  { "store_id": "SE-STORE-A", "name": "Store A Göteborg Centrum", "type": "STORE", "lat": 57.7089, "lng": 11.9746, "prep_minutes": 60 },
+  { "store_id": "SE-STORE-B", "name": "Store B Mölndal", "type": "STORE", "lat": 57.6554, "lng": 12.0138, "prep_minutes": 60 },
+  { "store_id": "SE-STORE-C", "name": "Store C Partille", "type": "STORE", "lat": 57.7395, "lng": 12.1064, "prep_minutes": 60 },
+  { "store_id": "SE-STORE-D", "name": "Store D Kungälv", "type": "STORE", "lat": 57.8710, "lng": 11.9805, "prep_minutes": 60 },
+  { "store_id": "SE-STORE-E", "name": "Store E Kungsbacka", "type": "STORE", "lat": 57.4875, "lng": 12.0761, "prep_minutes": 60 },
+  { "store_id": "SE-STORE-F", "name": "Store F Lerum", "type": "STORE", "lat": 57.7705, "lng": 12.2690, "prep_minutes": 60 },
+  { "store_id": "SE-STORE-G", "name": "Store G Alingsås", "type": "STORE", "lat": 57.9303, "lng": 12.5334, "prep_minutes": 60 },
+  { "store_id": "SE-STORE-H", "name": "Store H Stenungsund", "type": "STORE", "lat": 58.0705, "lng": 11.8180, "prep_minutes": 60 },
+  { "store_id": "SE-STORE-I", "name": "Store I Borås", "type": "STORE", "lat": 57.7210, "lng": 12.9401, "prep_minutes": 60 },
+  { "store_id": "SE-STORE-J", "name": "Store J Kinna", "type": "STORE", "lat": 57.5095, "lng": 12.6944, "prep_minutes": 60 },
+  { "store_id": "SE-HUB-01", "name": "Hub SE-01 Landvetter", "type": "HUB", "lat": 57.6880, "lng": 12.2080, "prep_minutes": 90 }
+]

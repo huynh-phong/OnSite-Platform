@@ -1,0 +1,7 @@
+[
+  { "user_id": "buyer.nordbygg", "role": "customer", "customer_id": "SE-CUST-001" },
+  { "user_id": "staff.store-b", "role": "staff", "store_id": "SE-STORE-B" },
+  { "user_id": "staff.hub-01", "role": "staff", "store_id": "SE-HUB-01" },
+  { "user_id": "staff.store-c", "role": "staff", "store_id": "SE-STORE-C" },
+  { "user_id": "admin.se", "role": "admin" }
+]

@@ -1,0 +1,11 @@
+{
+  "unit": ["bag", "piece", "pallet", "sheet", "m", "m2", "m3", "kg", "roll"],
+  "category": ["cement", "timber", "gypsum_board", "insulation", "other"],
+  "pack_size_kg": {
+    "Portland cement 25 kg bag": 25,
+    "Portland cement 40 kg bag": 40,
+    "Rapid-set cement 25 kg bag": 25,
+    "Masonry mortar 25 kg bag": 25,
+    "Concrete mix 25 kg bag": 25
+  }
+}

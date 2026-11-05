@@ -1,0 +1,11 @@
+[
+  {
+    "customer_id": "SE-CUST-001",
+    "company_name": "Nordbygg AB",
+    "contact": { "name": "Demo Site Manager", "phone": "+46 000 000 000", "email": "site.manager@nordbygg.example" },
+    "sites": [
+      { "site_id": "SE-SITE-001", "lat": 57.6290, "lng": 11.9290, "address": "Demo Site 1, Askim, Göteborg" },
+      { "site_id": "SE-SITE-002", "lat": 58.3903, "lng": 13.8453, "address": "Demo Site 2, Skövde" }
+    ]
+  }
+]
